@@ -4,16 +4,17 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import Sidebar from "@/components/Artikel/Sidebar";
 import { Article, ArticleBlock, getArticleById } from "@/lib/articles";
-
 import CodeBlock from "@/components/Artikel/Items/CodeBlock";
-
 
 export default function ArticlePage() {
   const params = useParams();
   const id = params?.id;
   const router = useRouter();
+
   const [article, setArticle] = useState<Article | null>(null);
   const [blocks, setBlocks] = useState<ArticleBlock[]>([]);
+
+  const [isOpen, setIsOpen] = useState(true);
 
   useEffect(() => {
     if (!id || Array.isArray(id)) return;
@@ -21,7 +22,6 @@ export default function ArticlePage() {
     if (found) {
       setArticle(found);
 
-      // JSON parsen
       try {
         const parsed = JSON.parse(found.content);
         if (Array.isArray(parsed)) setBlocks(parsed);
@@ -35,20 +35,18 @@ export default function ArticlePage() {
   if (!article) return <div className="p-6 text-red-500">Article not found</div>;
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
-      {/* Sidebar nur in Artikelansicht */}
-      <Sidebar />
+    <div className="flex bg-gray-50 h-screen">
+      {/* Sidebar */}
+      <Sidebar isOpen={isOpen} toggle={() => setIsOpen(!isOpen)} />
 
+      {/* Main Content */}
       <main className="flex-1 overflow-auto p-6">
         {/* Breadcrumb + Header + Buttons + Views */}
-        {/* Headerbereich */}
-        <div className="grid grid-cols-2 grid-rows-2 gap-2 mb-0">
-          {/* Oben links: Breadcrumb */}
+        <div className="grid grid-cols-2 grid-rows-2 gap-2 mb-4">
           <div className="text-gray-500 text-sm">
             Article &gt; Wiki &gt; {article.name}
           </div>
 
-          {/* Oben rechts: Buttons */}
           <div className="flex justify-end gap-2">
             <button
               className="px-3 py-1.5 border rounded-lg text-sm shadow hover:bg-gray-100 transition"
@@ -56,31 +54,23 @@ export default function ArticlePage() {
             >
               ✏️ Edit
             </button>
-            <button
-              className="px-3 py-1.5 border rounded-lg text-sm shadow hover:bg-gray-100 transition"
-            >
+            <button className="px-3 py-1.5 border rounded-lg text-sm shadow hover:bg-gray-100 transition">
               Fav
             </button>
-            <button
-              className="px-3 py-1.5 border rounded-lg text-sm shadow hover:bg-gray-100 transition"
-            >
+            <button className="px-3 py-1.5 border rounded-lg text-sm shadow hover:bg-gray-100 transition">
               Share
             </button>
           </div>
 
-          {/* Unten links: Last edited by */}
           <div className="text-gray-600 text-xs">
-            Last edited by <span className="font-bold">{article.creator} a minute ago</span>
+            Last edited by{" "}
+            <span className="font-bold">{article.creator} a minute ago</span>
           </div>
 
-          {/* Unten rechts: Views */}
           <div className="text-xs text-gray-400 flex justify-end">
             {article.views} views
           </div>
         </div>
-
-
-
 
         <hr className="mb-4 border-gray-300" />
 
@@ -89,12 +79,15 @@ export default function ArticlePage() {
           {blocks.map((block) => {
             switch (block.type) {
               case "heading":
-  return <h2 key={block.id} className="text-2xl font-bold">{block.content}</h2>;
-
+                return (
+                  <h2 key={block.id} className="text-2xl font-bold">
+                    {block.content}
+                  </h2>
+                );
               case "text":
                 return <p key={block.id}>{block.content}</p>;
               case "code":
-                return <CodeBlock key={block.id} value={block.content} language="js" />
+                return <CodeBlock key={block.id} value={block.content} language="js" />;
               case "list":
                 return (
                   <ul key={block.id} className="list-disc ml-6">

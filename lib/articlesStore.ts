@@ -16,6 +16,13 @@ let articles: Record<string, Article> = {
     views: 123,
     content: "## Hallo Welt\n\n```js\nconsole.log('Hi');\n```",
   },
+    R70A22: {
+    id: "R70A22",
+    name: "zweiter Artikel",
+    creator: "Admin",
+    views: 123,
+    content: "## Hallo Welt\n\n```js\nconsole.log('Hi');\n```",
+  },
 };
 
 export function getArticleById(id: string): Article | null {
