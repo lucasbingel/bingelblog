@@ -1,103 +1,216 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import React, { useState } from "react";
+import useSWR from "swr";
+import { usePortfolio } from "../context/PortfolioContext";
+import { useRouter } from "next/navigation";
+
+interface Stock {
+  symbol: string;
+  shortName: string;
+  regularMarketPrice: number | null;
+  regularMarketChangePercent: number | null;
+  dividend: number | null;
+  nextDividend: string;
+  lastTradeTime: string;
+  peRatio: number | null;
+  marketCap: number | null;
+  type: string;
+  sector: string;
+  beta?: number | null;
+  forwardPE?: number | null;
+  enterpriseValue?: number | null;
+  eps?: number | null;
+  earningsDate?: string[];
+  description?: string;
+  shares?: number;
+  marketValue?: number;
+  divYield?: number | null;
+}
+
+type SortKey = keyof Stock | null;
+
+const fetcher = (url: string) => fetch(url).then((res) => res.json());
+
+export default function StockTable() {
+  const { portfolio } = usePortfolio();
+  const router = useRouter();
+  const [sortKey, setSortKey] = useState<SortKey>(null);
+  const [sortAsc, setSortAsc] = useState(true);
+
+  const [filterSymbol, setFilterSymbol] = useState("");
+  const [filterName, setFilterName] = useState("");
+  const [filterType, setFilterType] = useState("");
+  const [filterSector, setFilterSector] = useState("");
+
+  const symbols = portfolio.map((p) => p.symbol).join(",");
+  const { data: stocksData, error } = useSWR<Stock[]>(
+    symbols ? `/api/stocks?symbols=${symbols}` : null,
+    fetcher,
+    { revalidateOnFocus: false }
+  );
+
+  if (error) return <div>Fehler beim Laden der Aktien</div>;
+  if (!stocksData) return <div>Lade Aktien...</div>;
+
+  const stocks = stocksData.map((s) => {
+    const shares = portfolio.find((p) => p.symbol === s.symbol)?.shares ?? 0;
+    const price = s.regularMarketPrice ?? 0;
+    const marketValue = price * shares;
+    const divYield =
+      s.dividend !== null && price ? (s.dividend / price) * 100 : null;
+    return { ...s, shares, marketValue, divYield };
+  });
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) setSortAsc(!sortAsc);
+    else {
+      setSortKey(key);
+      setSortAsc(true);
+    }
+  };
+
+  const sortedStocks = [...stocks]
+    .filter(
+      (s) =>
+        s.symbol.toLowerCase().includes(filterSymbol.toLowerCase()) &&
+        s.shortName.toLowerCase().includes(filterName.toLowerCase()) &&
+        s.type.toLowerCase().includes(filterType.toLowerCase()) &&
+        s.sector.toLowerCase().includes(filterSector.toLowerCase())
+    )
+    .sort((a, b) => {
+      if (!sortKey) return 0;
+      const aVal = a[sortKey];
+      const bVal = b[sortKey];
+      if (aVal === null || aVal === undefined) return 1;
+      if (bVal === null || bVal === undefined) return -1;
+      if (typeof aVal === "number" && typeof bVal === "number")
+        return sortAsc ? aVal - bVal : bVal - aVal;
+      return sortAsc
+        ? String(aVal).localeCompare(String(bVal))
+        : String(bVal).localeCompare(String(aVal));
+    });
+
+  const totalValue = stocks.reduce((acc, s) => acc + (s.marketValue ?? 0), 0);
+
+  const getKGVClass = (pe: number | null) => {
+    if (!pe) return "";
+    if (pe < 10) return "bg-green-100 text-green-800";
+    if (pe > 25) return "bg-red-100 text-red-800";
+    return "";
+  };
+
+  const getDivYieldClass = (yieldPercent: number | null) => {
+    if (yieldPercent === null) return "";
+    if (yieldPercent >= 4) return "bg-green-100 text-green-800";
+    if (yieldPercent <= 2) return "bg-red-100 text-red-800";
+    return "";
+  };
+
+  const getChangeClass = (change: number | null) => {
+    if (change === null) return "";
+    if (change > 2) return "bg-green-50 text-green-700";
+    if (change < -2) return "bg-red-50 text-red-700";
+    return "";
+  };
+
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <div className="space-y-4">
+      <div className="flex justify-between items-center bg-green-100 p-4 rounded-md">
+        <h2 className="text-xl font-bold">
+          Gesamtvermögen: {totalValue.toFixed(2)} €
+        </h2>
+      </div>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      <div className="flex gap-2 flex-wrap mb-2">
+        <input
+          placeholder="Symbol"
+          value={filterSymbol}
+          onChange={(e) => setFilterSymbol(e.target.value)}
+          className="p-1 border rounded"
+        />
+        <input
+          placeholder="Name"
+          value={filterName}
+          onChange={(e) => setFilterName(e.target.value)}
+          className="p-1 border rounded"
+        />
+        <input
+          placeholder="Typ"
+          value={filterType}
+          onChange={(e) => setFilterType(e.target.value)}
+          className="p-1 border rounded"
+        />
+        <input
+          placeholder="Branche"
+          value={filterSector}
+          onChange={(e) => setFilterSector(e.target.value)}
+          className="p-1 border rounded"
+        />
+      </div>
+
+      <table className="min-w-full border border-gray-200 rounded-md bg-white">
+        <thead className="bg-gray-100">
+          <tr>
+            {[
+              { label: "Symbol", key: "symbol" },
+              { label: "Name", key: "shortName" },
+              { label: "Preis (€)", key: "regularMarketPrice" },
+              { label: "Δ %", key: "regularMarketChangePercent" },
+              { label: "Anteile", key: "shares" },
+              { label: "Marktwert (€)", key: "marketValue" },
+              { label: "Dividende", key: "dividend" },
+              { label: "Nächste Dividende", key: "nextDividend" },
+              { label: "KGV", key: "peRatio" },
+              { label: "Typ", key: "type" },
+              { label: "Branche", key: "sector" },
+              { label: "Beta", key: "beta" },
+              { label: "EPS", key: "eps" },
+              { label: "Forward PE", key: "forwardPE" },
+              { label: "Enterprise Value", key: "enterpriseValue" },
+              { label: "Earnings-Date", key: "earningsDate" },
+              { label: "Letzter Trade", key: "lastTradeTime" },
+            ].map((col) => (
+              <th
+                key={col.key}
+                onClick={() => toggleSort(col.key as SortKey)}
+                className="p-2 border text-left cursor-pointer"
+              >
+                {col.label} {sortKey === col.key ? (sortAsc ? "▲" : "▼") : ""}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {sortedStocks.map((s) => (
+            <tr
+              key={s.symbol}
+              className="hover:bg-gray-50 text-center cursor-pointer"
+              onDoubleClick={() => router.push(`/stocks/${s.symbol}`)}
+            >
+              <td className="p-2 border text-left">{s.symbol}</td>
+              <td className="p-2 border text-left">{s.shortName}</td>
+              <td className="p-2 border text-right">{s.regularMarketPrice?.toFixed(2) ?? "—"}</td>
+              <td className={`p-2 border text-right ${getChangeClass(s.regularMarketChangePercent)}`}>
+                {s.regularMarketChangePercent !== null ? (s.regularMarketChangePercent >= 0 ? "+" : "") + s.regularMarketChangePercent.toFixed(2) : "—"}
+              </td>
+              <td className="p-2 border text-right">{s.shares?.toFixed(2) ?? "—"}</td>
+              <td className="p-2 border text-right">{s.marketValue?.toFixed(2) ?? "—"}</td>
+              <td className={`p-2 border text-right ${getDivYieldClass(s.divYield)}`}>{s.dividend?.toFixed(2) ?? "—"}</td>
+              <td className="p-2 border text-center">{s.nextDividend}</td>
+              <td className={`p-2 border text-right ${getKGVClass(s.peRatio)}`}>{s.peRatio?.toFixed(2) ?? "—"}</td>
+              <td className="p-2 border text-center">{s.type}</td>
+              <td className="p-2 border text-center">{s.sector}</td>
+              <td className="p-2 border text-right">{s.beta?.toFixed(2) ?? "—"}</td>
+              <td className="p-2 border text-right">{s.eps?.toFixed(2) ?? "—"}</td>
+              <td className="p-2 border text-right">{s.forwardPE?.toFixed(2) ?? "—"}</td>
+              <td className="p-2 border text-right">{s.enterpriseValue?.toLocaleString() ?? "—"}</td>
+              <td className="p-2 border text-center">{s.earningsDate?.join(", ") ?? "—"}</td>
+              <td className="p-2 border text-center">{s.lastTradeTime}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
