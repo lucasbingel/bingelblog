@@ -10,11 +10,18 @@ const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"]
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-50 min-h-screen flex flex-col`}>
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-50 min-h-screen flex flex-col`}
+      >
         <PortfolioProvider>
+          {/* Navbar entscheidet selbst, ob Wiki-Modus */}
           <Navbar />
-          {/* flex-1 sorgt dafür, dass main den restlichen Platz einnimmt */}
-          <main className="flex-1 container mx-auto p-4">{children}</main>
+
+          {/* Main-Bereich füllt den Rest der Seite */}
+          <main className="flex-1 w-full">
+            {children}
+          </main>
+
           <Footer />
         </PortfolioProvider>
       </body>

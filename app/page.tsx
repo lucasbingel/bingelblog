@@ -4,6 +4,10 @@ import React, { useState } from "react";
 import useSWR from "swr";
 import { usePortfolio } from "../context/PortfolioContext";
 import { useRouter } from "next/navigation";
+import ArticleTable from "@/components/Artikel/ArtikelTable";
+import { getArticles } from "@/lib/articles";
+
+
 
 interface Stock {
   symbol: string;
@@ -112,7 +116,7 @@ export default function StockTable() {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 mx-12 p-4">
       {/* Hero Section */}
       <section className="bg-green-50 rounded-md p-8 flex flex-col md:flex-row items-center gap-6">
         <div className="md:w-1/2">
@@ -260,6 +264,9 @@ export default function StockTable() {
           </tbody>
         </table>
       </div>
+
+{/* Artikeltabelle */}
+<ArticleTable data={getArticles()} />
     </div>
   );
 }
