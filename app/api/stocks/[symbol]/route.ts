@@ -1,17 +1,16 @@
 import { NextResponse } from "next/server";
 import yahooFinance from "yahoo-finance2";
 
-export async function GET(
-  req: Request,
-  context: { params: { symbol: string } }
-) {
+export async function GET(req: Request, context: { params: Promise<{ symbol: string }> }) {
   try {
-    const { symbol } = context.params;
-    if (!symbol)
+    // Warten auf die params-Promise
+    const { symbol } = await context.params;
+    if (!symbol) {
       return NextResponse.json(
         { error: "Kein Symbol angegeben" },
         { status: 400 }
       );
+    }
 
     const url = new URL(req.url);
     const range = url.searchParams.get("range") || "1mo";
@@ -20,7 +19,6 @@ export async function GET(
     let history: { date: string; close: number }[] = [];
 
     try {
-      // QuoteSummary
       quote = await yahooFinance.quoteSummary(symbol, {
         modules: [
           "price",
@@ -31,17 +29,15 @@ export async function GET(
         ],
       });
 
-      // Historische Daten über 'historical' mit passendem Intervall
-      const interval = getIntervalForRange(range);
       const hist = await yahooFinance.historical(symbol, {
         period1: new Date(Date.now() - getRangeMillis(range)),
         period2: new Date(),
-        interval,
+        interval: getValidInterval(range),
       });
 
       history = hist.map((h: any) => ({
         date:
-          range === "1d" || range === "1wk"
+          range === "1d"
             ? new Date(h.date).toLocaleTimeString("de-DE", {
                 hour: "2-digit",
                 minute: "2-digit",
@@ -126,22 +122,28 @@ function getRangeMillis(range: string) {
       return 365 * 24 * 60 * 60 * 1000;
     case "5y":
       return 5 * 365 * 24 * 60 * 60 * 1000;
+    case "10y":
+      return 10 * 365 * 24 * 60 * 60 * 1000;
     default:
       return 30 * 24 * 60 * 60 * 1000;
   }
 }
 
-// Intervall passend zum Zeitraum
-function getIntervalForRange(range: string): "1d" | "1wk" | "1mo" | "5m" | "1h" {
+function getValidInterval(range: string): "1d" | "1wk" | "1mo" {
   switch (range) {
     case "1d":
-      return "5m"; // 5 Minuten
+      return "1d";   // Tageswerte
     case "1wk":
-      return "1h"; // 1 Stunde
+      return "1d";   // Wochendaten: täglich für kurze Zeiträume
     case "1mo":
+      return "1d";   // Monatsdaten: täglich
     case "1y":
+      return "1wk";  // Jahresdaten: Wochenwerte
     case "5y":
+    case "10y":
+      return "1mo";  // 5 oder 10 Jahre: Monatswerte
     default:
-      return "1d"; // Tagesdaten
+      return "1d";
   }
 }
+

@@ -51,7 +51,7 @@ export default function StockDetailPage({ params }: { params: { symbol: string }
       </div>
 
       <div className="flex gap-2">
-        {["1d","1wk","1mo","1y"].map(r => (
+        {["1d","1wk","1mo","1y","5y","10y"].map(r => (
           <button key={r} className={`px-3 py-1 rounded ${range===r?"bg-blue-500 text-white":"bg-gray-200"}`} 
             onClick={()=>setRange(r as any)}>
             {r}
