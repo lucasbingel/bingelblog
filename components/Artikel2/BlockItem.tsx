@@ -1,7 +1,7 @@
 "use client";
 
 import { CSS } from "@dnd-kit/utilities";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { GripVertical, Trash2, Copy, ChevronUp, ChevronDown } from "lucide-react";
 import type { EditorBlock, EditorBlockType } from "./types";
@@ -25,39 +25,49 @@ export default function BlockItem({
   moveBlockUp,
   moveBlockDown,
 }: Props) {
-  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: block.id });
-  const [active, setActive] = useState(false);
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: block.id });
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement | HTMLInputElement | null>(null);
+  const contentRef = useRef(block.content);
+  const [active, setActive] = useState(false);
 
-  // --- Lokaler Content State nur einmal initial
-  const [localContent, setLocalContent] = useState(block.content);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setActive(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
-  // --- Deselection bei Klick außerhalb
   useEffect(() => {
     if (!active) return;
     const handler = (e: MouseEvent) => {
       if (!rootRef.current) return;
-      if (!rootRef.current.contains(e.target as Node)) setActive(false);
+      if (!rootRef.current.contains(e.target as Node)) {
+        commit();
+        setActive(false);
+      }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [active]);
 
-  // Escape um deselect
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setActive(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
+    if (active && inputRef.current) {
+      const el = inputRef.current;
+      el.focus({ preventScroll: true });
+      if ("selectionStart" in el) el.selectionStart = el.selectionEnd = el.value.length;
+    }
+  }, [active]);
 
+  // Nur vertikal + keine Sprünge
   const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
+    transform: transform ? `translate3d(0px, ${transform.y}px, 0px)` : undefined,
+    transition: isDragging ? "none" : "transform 150ms ease",
+    zIndex: isDragging ? 999 : undefined,
   };
 
-  const commit = () => updateBlock(block.id, localContent);
+  const commit = () => {
+    if (contentRef.current !== block.content) updateBlock(block.id, contentRef.current);
+  };
 
   const RenderView = () => {
     switch (block.type) {
@@ -74,38 +84,28 @@ export default function BlockItem({
   };
 
   const EditBody = () => {
-    switch (block.type) {
-      case "heading":
-      case "text":
-      case "code":
-      case "list":
-      case "quote":
-        return (
-          <textarea
-            autoFocus
-            className="w-full border rounded p-2"
-            defaultValue={localContent}  // <-- WICHTIG: defaultValue statt value
-            onChange={(e) => setLocalContent(e.target.value)}
-            onBlur={commit}
-          />
-        );
-      case "image":
-      case "video":
-        return (
-          <input
-            autoFocus
-            className="w-full border rounded p-2"
-            defaultValue={localContent} // <-- defaultValue
-            onChange={(e) => setLocalContent(e.target.value)}
-            onBlur={commit}
-            placeholder={block.type === "image" ? "Bild-URL …" : "Video-URL …"}
-          />
-        );
-      case "divider":
-        return <div className="h-px bg-gray-200" />;
-      default:
-        return null;
+    if (["heading","text","code","list","quote"].includes(block.type)) {
+      return (
+        <textarea
+          ref={inputRef as React.RefObject<HTMLTextAreaElement>}
+          className="w-full border rounded p-2"
+          defaultValue={block.content}
+          onChange={(e) => contentRef.current = e.target.value}
+        />
+      );
     }
+    if (["image","video"].includes(block.type)) {
+      return (
+        <input
+          ref={inputRef as React.RefObject<HTMLInputElement>}
+          className="w-full border rounded p-2"
+          defaultValue={block.content}
+          onChange={(e) => contentRef.current = e.target.value}
+          placeholder={block.type === "image" ? "Bild-URL …" : "Video-URL …"}
+        />
+      );
+    }
+    return <div className="h-px bg-gray-200" />;
   };
 
   return (

@@ -12,11 +12,14 @@ const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"]
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-50 min-h-screen flex flex-col`}>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-50 flex flex-col min-h-screen`}>
         <PortfolioProvider>
           {/* Navbar entscheidet selbst, clientseitig */}
           <MainNavbar />
-          {children}
+          {/* Main Content füllt die Höhe zwischen Navbar und Footer */}
+          <main className="flex-1 flex flex-col">
+            {children}
+          </main>
           <Footer />
         </PortfolioProvider>
       </body>

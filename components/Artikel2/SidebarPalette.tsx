@@ -38,7 +38,7 @@ export default function SidebarPalette({ isOpen, toggle, onAddBlock }: Props) {
         ref={setNodeRef}
         {...listeners}
         {...attributes}
-        className="p-2 rounded border hover:bg-gray-100 cursor-grab text-sm text-center select-none"
+        className="p-2 rounded border hover:bg-gray-100 cursor-grab text-sm text-center select-none w-full"
       >
         {label}
       </div>
@@ -47,8 +47,8 @@ export default function SidebarPalette({ isOpen, toggle, onAddBlock }: Props) {
 
   return (
     <>
-      <aside className={`sticky top-0 h-screen flex-shrink-0 border-r bg-gray-100 transition-all duration-300 ${isOpen ? "w-40" : "w-16"} p-2`}>
-        <button onClick={toggle} className="mb-2 text-xs px-1 py-0.5 border rounded">{isOpen ? "Close" : "Open"}</button>
+      <aside className="sticky top-0 flex-shrink-0 border-r bg-gray-100 overflow-auto w-40 p-2">
+        <button onClick={toggle} className="mb-2 text-xs px-1 py-0.5 border rounded w-full">{isOpen ? "Close" : "Open"}</button>
         <div className="flex flex-col gap-2">
           {items.map(it => (
             <DraggableItem key={it.type} type={it.type} label={it.label} />
