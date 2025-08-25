@@ -1,8 +1,17 @@
 import { ReactNode } from "react";
 
+// lib/articles.ts  (Ausschnitt)
 export type ArticleBlock = {
   id: string;
-  type: "text" | "heading" | "code" | "image" | "list" | "quote" | "video" | "divider";
+  type:
+    | "text"
+    | "heading"
+    | "code"
+    | "image"
+    | "list"
+    | "quote"
+    | "video"
+    | "divider";
   content: string;
 };
 
@@ -36,6 +45,19 @@ let articles: Record<string, Article> = {
     description: undefined,
     lastUpdate: undefined,
     tag: undefined
+  },
+  R70A22: {
+    id: "R70A22",
+    name: "zweiter Artikel",
+    creator: "Admin",
+    views: 12311,
+    content: JSON.stringify([
+      
+    ]),
+    category: undefined,
+    description: undefined,
+    lastUpdate: undefined,
+    tag: "info"
   },
 };
 

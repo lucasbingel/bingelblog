@@ -64,6 +64,12 @@ export default function ArticlePage() {
             >
               ✏️ Edit
             </button>
+            <button
+              className="px-3 py-1.5 border rounded-lg text-sm shadow hover:bg-gray-100 transition"
+              onClick={() => router.push(`/wiki/${article.id}/edit2`)}
+            >
+              ✏️ Edit 2
+            </button>
             <button className="px-3 py-1.5 border rounded-lg text-sm shadow hover:bg-gray-100 transition">
               Fav
             </button>
