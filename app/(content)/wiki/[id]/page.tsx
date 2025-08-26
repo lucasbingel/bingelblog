@@ -7,6 +7,8 @@ import ArticleSkeleton from "@/components/Artikel2/ArtikelSkeleton";
 import { Article, ArticleBlock, getArticleById } from "@/lib/articles";
 import CodeBlock from "@/components/Artikel/Items/CodeBlock";
 import { Virtuoso } from "react-virtuoso";
+import Assistant from "@/components/Artikel2/Assistant"; // korrekt
+
 
 
 
@@ -381,13 +383,16 @@ export default function ArticlePage() {
               />
             ) : (
               <div>
-                <p className="text-gray-500">Kein Inhalt für diese Seite.<br />Nutze unserern Editor uns lege neues Wissen an.</p>
+                <p className="text-gray-500">Kein Inhalt für diese Seite.<br />Nutze unserern Editor uns lege neues Wissen an oder lösche diese Seite.</p>
                 <button className="px-3 mt-4 py-1.5 border rounded-lg text-sm shadow hover:bg-gray-100" onClick={() => router.push(`/wiki/${article?.id}/edit2`)}>✏️ Loslegen</button>
+              <button className="px-3 mt-4 ml-4 py-1.5 border rounded-lg text-sm shadow hover:bg-gray-100" onClick={() => router.push(`/wiki/${article?.id}/edit2`)}>Seite Löschen</button>
               </div>
             )}
           </div>
         )}
       </main>
+      <Assistant wikiPages={selectedPage ? [selectedPage] : []} />
+
     </div>
   );
 }
