@@ -1,17 +1,23 @@
+// components/Artikel2/SidebarWiki.tsx
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { v4 as uuidv4 } from "uuid";
+// nachher (richtig)
+import type { Article } from "@/lib/articles";
+import type { EditorBlock } from "./types"; // Pfad anpassen, je nach Ordnerstruktur
 import type { WikiPage } from "@/lib/wikipages";
+import { getArticles } from "@/lib/articles";
+import { getWikiArticles } from "@/lib/wikipages";
 
 interface SidebarProps {
-  onSelectPage: (page: WikiPage) => void;
+  onSelectPage: (page: WikiPage | Article) => void;
 }
 
 interface SidebarItemProps {
-  node: WikiPage;
+  node: WikiPage | Article;
   level: number;
-  onSelectPage: (page: WikiPage) => void;
+  onSelectPage: (page: WikiPage | Article) => void;
   addPage: (parentId?: string) => void;
   deletePage: (id: string) => void;
   editingId: string | null;
@@ -19,7 +25,7 @@ interface SidebarItemProps {
   updatePageName: (id: string, name: string) => void;
 }
 
-const SidebarItem: React.FC<SidebarItemProps> = ({
+const SidebarItem = ({
   node,
   level,
   onSelectPage,
@@ -28,9 +34,10 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
   editingId,
   setEditingId,
   updatePageName,
-}) => {
+}: SidebarItemProps) => {
   const [expanded, setExpanded] = useState(true);
-  const hasChildren = node.children && node.children.length > 0;
+  const hasChildren =
+    "children" in node && Array.isArray(node.children) && node.children.length > 0;
 
   return (
     <li className="space-y-1">
@@ -43,7 +50,7 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
             type="text"
             className="border rounded px-1 py-0.5 text-sm w-full"
             value={node.name}
-            onChange={e => updatePageName(node.id, e.target.value)}
+            onChange={(e) => updatePageName(node.id, e.target.value)}
             onBlur={() => setEditingId(null)}
             autoFocus
           />
@@ -66,55 +73,72 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
             >
               {node.name}
             </span>
-            <button
-              className="text-xs px-1 py-0.5 hover:bg-gray-300 rounded"
-              onClick={() => addPage(node.id)}
-            >
-              ➕
-            </button>
-            <button
-              className="text-xs px-1 py-0.5 hover:bg-red-200 rounded text-red-600"
-              onClick={() => deletePage(node.id)}
-            >
-              🗑️
-            </button>
+            {"children" in node && (
+              <>
+                <button
+                  className="text-xs px-1 py-0.5 hover:bg-gray-300 rounded"
+                  onClick={() => addPage(node.id)}
+                >
+                  ➕
+                </button>
+                <button
+                  className="text-xs px-1 py-0.5 hover:bg-red-200 rounded text-red-600"
+                  onClick={() => deletePage(node.id)}
+                >
+                  🗑️
+                </button>
+              </>
+            )}
           </>
         )}
       </div>
 
       {hasChildren && expanded && (
         <ul className="mt-1">
-          {node.children!.map(child => (
-            <SidebarItem
-              key={child.id}
-              node={child}
-              level={level + 1}
-              onSelectPage={onSelectPage}
-              addPage={addPage}
-              deletePage={deletePage}
-              editingId={editingId}
-              setEditingId={setEditingId}
-              updatePageName={updatePageName}
-            />
-          ))}
+          {"children" in node &&
+            node.children!.map((child: WikiPage) => (
+              <SidebarItem
+                key={child.id}
+                node={child}
+                level={level + 1}
+                onSelectPage={onSelectPage}
+                addPage={addPage}
+                deletePage={deletePage}
+                editingId={editingId}
+                setEditingId={setEditingId}
+                updatePageName={updatePageName}
+              />
+            ))}
         </ul>
       )}
     </li>
   );
 };
 
-const Sidebar: React.FC<SidebarProps> = ({ onSelectPage }) => {
-  const [pages, setPages] = useState<WikiPage[]>([]);
+export default function SidebarWiki({ onSelectPage }: SidebarProps) {
+  const [wikiPages, setWikiPages] = useState<WikiPage[]>([]);
+  const [articles, setArticles] = useState<Article[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
 
+  useEffect(() => {
+    setWikiPages(getWikiArticles());
+    setArticles(getArticles());
+  }, []);
+
   const addPage = (parentId?: string) => {
-    const newPage: WikiPage = { id: uuidv4(), name: "Neue Seite", parentId, children: [], content: [] };
-    setPages(prev => {
+    const newPage: WikiPage = {
+      id: uuidv4(),
+      name: "Neue Seite",
+      parentId,
+      children: [],
+      content: [] as EditorBlock[], // <-- Korrektur hier
+    };
+    setWikiPages((prev) => {
       if (!parentId) return [...prev, newPage];
 
       const addChild = (nodes: WikiPage[]): WikiPage[] =>
-        nodes.map(n => {
+        nodes.map((n) => {
           if (n.id === parentId) {
             const children = n.children ? [...n.children, newPage] : [newPage];
             return { ...n, children };
@@ -125,38 +149,39 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectPage }) => {
 
       return addChild(prev);
     });
-
     setEditingId(newPage.id);
   };
 
   const updatePageName = (id: string, name: string) => {
     const updateName = (nodes: WikiPage[]): WikiPage[] =>
-      nodes.map(n => {
+      nodes.map((n) => {
         if (n.id === id) return { ...n, name };
         if (n.children) return { ...n, children: updateName(n.children) };
         return n;
       });
-    setPages(prev => updateName(prev));
+    setWikiPages((prev) => updateName(prev));
   };
 
   const deletePage = (id: string) => {
     const removePage = (nodes: WikiPage[]): WikiPage[] =>
       nodes
-        .filter(n => n.id !== id)
-        .map(n => (n.children ? { ...n, children: removePage(n.children) } : n));
-    setPages(prev => removePage(prev));
+        .filter((n) => n.id !== id)
+        .map((n) => (n.children ? { ...n, children: removePage(n.children) } : n));
+    setWikiPages((prev) => removePage(prev));
   };
 
   const filteredPages = useMemo(() => {
-    if (!searchTerm) return pages;
-
     const filterNodes = (nodes: WikiPage[]): WikiPage[] =>
       nodes
-        .map(n => ({ ...n, children: n.children ? filterNodes(n.children) : undefined }))
-        .filter(n => n.name.toLowerCase().includes(searchTerm.toLowerCase()) || (n.children && n.children.length > 0));
+        .map((n) => ({ ...n, children: n.children ? filterNodes(n.children) : undefined }))
+        .filter(
+          (n) =>
+            n.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (n.children && n.children.length > 0)
+        );
 
-    return filterNodes(pages);
-  }, [pages, searchTerm]);
+    return filterNodes(wikiPages);
+  }, [wikiPages, searchTerm]);
 
   return (
     <div className="sticky top-0 h-screen flex flex-col w-72 bg-gray-100 border-r">
@@ -176,10 +201,27 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectPage }) => {
           placeholder="Search..."
           className="w-full px-2 py-1 border rounded mb-4"
           value={searchTerm}
-          onChange={e => setSearchTerm(e.target.value)}
+          onChange={(e) => setSearchTerm(e.target.value)}
         />
+
         <ul className="space-y-2 text-sm">
-          {filteredPages.map(node => (
+          {/* Artikel oben */}
+          {articles.map((article) => (
+            <SidebarItem
+              key={article.id}
+              node={article}
+              level={0}
+              onSelectPage={onSelectPage}
+              addPage={addPage}
+              deletePage={deletePage}
+              editingId={editingId}
+              setEditingId={setEditingId}
+              updatePageName={updatePageName}
+            />
+          ))}
+
+          {/* WikiPages darunter */}
+          {filteredPages.map((node) => (
             <SidebarItem
               key={node.id}
               node={node}
@@ -196,6 +238,4 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectPage }) => {
       </div>
     </div>
   );
-};
-
-export default Sidebar;
+}

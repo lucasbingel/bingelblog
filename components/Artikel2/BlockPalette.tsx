@@ -13,6 +13,10 @@ const palette: { type: EditorBlockType; label: string }[] = [
   { type: "quote", label: "Quote" },
   { type: "video", label: "Video" },
   { type: "divider", label: "Divider" },
+  { type: "table", label: "table" },
+  { type: "section", label: "section" },
+  { type: "collapsible", label: "collapsible" },
+  { type: "alert", label: "alert" },
 ];
 
 function PaletteItem({ type, label, onClick }: { type: EditorBlockType; label: string; onClick: () => void }) {

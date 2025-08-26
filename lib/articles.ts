@@ -5,14 +5,18 @@ export type ArticleBlock = {
   language: string;
   id: string;
   type:
-    | "text"
     | "heading"
-    | "code"
-    | "image"
-    | "list"
-    | "quote"
-    | "video"
-    | "divider";
+  | "text"
+  | "code"
+  | "list"
+  | "image"
+  | "quote"
+  | "video"
+  | "divider"
+  | "table"
+  | "section"
+  | "collapsible"
+  | "alert";
   content: string;
 };
 
@@ -31,7 +35,7 @@ export type Article = {
 let articles: Record<string, Article> = {
   R70A21: {
     id: "R70A21",
-    name: "Alrounder Artikel",
+    name: "Video Artikel",
     creator: "Admin",
     views: 123,
     content: JSON.stringify([

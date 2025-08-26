@@ -3,7 +3,7 @@ import type { EditorBlock, EditorBlockType } from "./types";
 
 const id = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-export const defaultContentFor = (type: EditorBlockType): string => {
+export const defaultContentFor = (type: EditorBlockType): any => {
   switch (type) {
     case "heading":
       return "Neue Überschrift";
@@ -21,8 +21,24 @@ export const defaultContentFor = (type: EditorBlockType): string => {
       return "https://www.youtube.com/embed/dQw4w9WgXcQ";
     case "divider":
       return "";
+    case "table":
+      // ein 2x2 Start-Grid
+      return [
+        ["", ""],
+        ["", ""],
+      ];
+    case "section":
+      return "Neue Sektion";
+    case "collapsible":
+      return "Einklappbarer Inhalt";
+    case "alert":
+      return "Dies ist ein Hinweis.";
+    default:
+      return "";
   }
 };
+
+
 
 export const makeBlock = (type: EditorBlockType): EditorBlock => ({
   id: id(),

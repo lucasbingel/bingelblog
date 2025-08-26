@@ -5,8 +5,8 @@ import { useDraggable, DragOverlay } from "@dnd-kit/core";
 import type { EditorBlockType } from "./types";
 
 interface Props {
-  isOpen: boolean;
-  toggle: () => void;
+  isOpen?: boolean;
+  toggle?: () => void;
   onAddBlock?: (type: EditorBlockType) => void;
 }
 
@@ -21,7 +21,7 @@ const items: { type: EditorBlockType; label: string }[] = [
   { type: "divider", label: "Divider" },
 ];
 
-export default function SidebarPalette({ isOpen, toggle, onAddBlock }: Props) {
+export default function SidebarPalette({ isOpen = true, toggle, onAddBlock }: Props) {
   const [draggingType, setDraggingType] = useState<EditorBlockType | null>(null);
 
   const DraggableItem = ({ type, label }: { type: EditorBlockType; label: string }) => {
@@ -38,17 +38,27 @@ export default function SidebarPalette({ isOpen, toggle, onAddBlock }: Props) {
         ref={setNodeRef}
         {...listeners}
         {...attributes}
-        className="p-2 rounded border hover:bg-gray-100 cursor-grab text-sm text-center select-none w-full"
+        onClick={() => onAddBlock?.(type)}
+        className="p-2 rounded border hover:bg-gray-200 cursor-pointer text-sm text-center select-none w-full"
       >
         {label}
       </div>
     );
   };
 
+  if (!isOpen) return null;
+
   return (
     <>
-      <aside className="sticky top-0 flex-shrink-0 border-r bg-gray-100 overflow-auto w-40 p-2">
-        <button onClick={toggle} className="mb-2 text-xs px-1 py-0.5 border rounded w-full">{isOpen ? "Close" : "Open"}</button>
+      <aside className="sticky top-0 flex-shrink-0 border-r bg-gray-100 h-full overflow-auto w-40 p-2">
+        {toggle && (
+          <button
+            onClick={toggle}
+            className="mb-2 text-xs px-1 py-0.5 border rounded w-full"
+          >
+            {isOpen ? "Close" : "Open"}
+          </button>
+        )}
         <div className="flex flex-col gap-2">
           {items.map(it => (
             <DraggableItem key={it.type} type={it.type} label={it.label} />

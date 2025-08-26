@@ -2,30 +2,162 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState, memo, useMemo, useRef } from "react";
-import Sidebar, { WikiPage } from "@/components/Artikel2/Sidebar";
+import SidebarWiki from "@/components/Artikel2/SidebarWiki";
 import ArticleSkeleton from "@/components/Artikel2/ArtikelSkeleton";
 import { Article, ArticleBlock, getArticleById } from "@/lib/articles";
 import CodeBlock from "@/components/Artikel/Items/CodeBlock";
 import { Virtuoso } from "react-virtuoso";
 
+
+
+
 // html2pdf nur client-side importieren
 const html2pdf = typeof window !== "undefined" ? require("html2pdf.js") : null;
 
+// --- EditorBlock Typ zentral
+export interface EditorBlock {
+  id: string;
+  type: ArticleBlock["type"];
+  content: any; // string | string[][] | { title: string; body: string } | ...
+  language: string; // immer string, nie undefined
+  children?: EditorBlock[];
+  level?: "info" | "error"; // für alert
+}
+
+// --- WikiPage lokal, basiert auf EditorBlock[]
+export interface WikiPage {
+  id: string;
+  name: string;
+  content: EditorBlock[];
+  parentId?: string;
+  children?: WikiPage[];
+}
+
+// --- CodeBlock Memo
 const CodeBlockMemo = memo(CodeBlock);
 
-const BlockMemo = memo(({ block }: { block: ArticleBlock }) => {
+// --- BlockMemo inklusive neuer Blöcke
+// --- BlockMemo inklusive neuer Blöcke mit Table-Switch
+const BlockMemo = memo(({ block }: { block: EditorBlock }) => {
+  // --- Table state
+  const [tableContent, setTableContent] = useState<string[][]>(() => {
+    if (block.type === "table" && Array.isArray(block.content)) {
+      return block.content;
+    }
+    if (typeof block.content === "string") {
+      // Text in 1-Spalte-Tabelle umwandeln
+      const lines = block.content.split("\n");
+      return lines.map(line => [line]);
+    }
+    return [[]];
+  });
+
+  // --- Update Table inline edit
+  const updateCell = (r: number, c: number, value: string) => {
+    const newTable = [...tableContent];
+    newTable[r][c] = value;
+    setTableContent(newTable);
+    block.content = newTable; // direkt im Block speichern
+  };
+
+  // --- Switch block to table (z.B. beim Editor-Change)
+  const switchToTable = () => {
+    if (block.type !== "table") {
+      block.type = "table";
+      let newTable: string[][] = [];
+
+      if (typeof block.content === "string") {
+        const lines = block.content.split("\n");
+        newTable = lines.map(line => [line]);
+      } else if (Array.isArray(block.content)) {
+        newTable = block.content;
+      }
+
+      block.content = newTable;
+      setTableContent(newTable);
+    }
+  };
+
+  // --- Render Block nach type
   switch (block.type) {
-    case "heading": return <h2 className="text-2xl font-bold my-2">{block.content}</h2>;
-    case "text": return <p className="my-2 leading-relaxed">{block.content}</p>;
-    case "list": return <ul className="list-disc ml-6 my-2">{block.content.split("\n").map((item, idx) => <li key={idx}>{item}</li>)}</ul>;
-    case "image": return <img src={block.content} alt="" className="rounded my-2 w-full" loading="lazy" />;
-    case "video": return <iframe src={block.content} title="Video" frameBorder="0" allowFullScreen className="w-full h-64 my-2 rounded" />;
-    case "quote": return <blockquote className="border-l-4 border-blue-500 italic pl-4 bg-gray-50 my-2">{block.content}</blockquote>;
-    case "divider": return <hr className="my-4 border-gray-300" />;
-    case "code": return <CodeBlockMemo value={block.content} language={block.language || "markdown"} />;
-    default: return <p>{block.content}</p>;
+    case "heading":
+      return <h2 className="text-2xl font-bold my-2">{block.content}</h2>;
+
+    case "text":
+      return <p className="my-2 leading-relaxed">{block.content}</p>;
+
+    case "list":
+      return (
+        <ul className="list-disc ml-6 my-2">
+          {(block.content as string).split("\n").map((item, idx) => <li key={idx}>{item}</li>)}
+        </ul>
+      );
+
+    case "image":
+      return <img src={block.content} alt="" className="rounded my-2 w-full" loading="lazy" />;
+
+    case "video":
+      return <iframe src={block.content} title="Video" frameBorder="0" allowFullScreen className="w-full h-64 my-2 rounded" />;
+
+    case "quote":
+      return <blockquote className="border-l-4 border-blue-500 italic pl-4 bg-gray-50 my-2">{block.content}</blockquote>;
+
+    case "divider":
+      return <hr className="my-4 border-gray-300" />;
+
+    case "code":
+      return <CodeBlockMemo value={block.content} language={block.language || "markdown"} />;
+
+    // --- Neue Blöcke
+    case "table":
+      return (
+        <table className="table-auto border-collapse border border-gray-300 my-4 w-full">
+          <tbody>
+            {tableContent.map((row, rIdx) => (
+              <tr key={rIdx}>
+                {row.map((cell, cIdx) => (
+                  <td key={cIdx} className="border px-2 py-1">
+                    <input
+                      value={cell}
+                      onChange={(e) => updateCell(rIdx, cIdx, e.target.value)}
+                      className="w-full border-none outline-none bg-transparent"
+                    />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      );
+
+    case "section":
+      return (
+        <section className="border p-2 my-2 bg-gray-50 rounded">
+          <h3 className="font-semibold">{block.content}</h3>
+          {block.children?.map(child => <BlockMemo key={child.id} block={child} />)}
+        </section>
+      );
+
+    case "collapsible":
+      return (
+        <details className="border p-2 my-2 rounded bg-gray-100">
+          <summary className="cursor-pointer font-semibold">{block.content.title}</summary>
+          <div className="mt-1">{block.content.body}</div>
+        </details>
+      );
+
+    case "alert":
+      return (
+        <div className={`p-2 my-2 rounded ${block.content.level === "info" ? "bg-blue-100" : "bg-red-100"} border`}>
+          {block.content.text}
+        </div>
+      );
+
+    default:
+      return <p>{block.content}</p>;
   }
 });
+
 
 const CHUNK_SIZE = 20;
 const CHUNK_THRESHOLD = 1000;
@@ -46,40 +178,19 @@ export default function ArticlePage() {
   const pdfRef = useRef<HTMLDivElement>(null);
 
   const [article, setArticle] = useState<Article | null>(null);
-  const [allBlocks, setAllBlocks] = useState<ArticleBlock[]>([]);
-  const [visibleBlocks, setVisibleBlocks] = useState<ArticleBlock[]>([]);
+  const [allBlocks, setAllBlocks] = useState<EditorBlock[]>([]);
+  const [visibleBlocks, setVisibleBlocks] = useState<EditorBlock[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedPage, setSelectedPage] = useState<WikiPage | null>(null);
 
- // statt: const [selectedPage, setSelectedPage] = useState<WikiPage | null>(null);
-// statt:
-// const [selectedPage, setSelectedPage] = useState<WikiPage | null>(() => { ... });
-const [selectedPage, setSelectedPage] = useState<WikiPage | null>(null);
-
-useEffect(() => {
-  if (!id || Array.isArray(id)) return; // keine gültige ID
-
-  const article = getArticleById(id);
-  if (!article) {
-    setSelectedPage(null);
-    return;
-  }
-
-  const blocks = JSON.parse(article.content) as ArticleBlock[];
-  setSelectedPage({
-    id: article.id,
-    name: article.name,
-    content: blocks,
-  });
-}, [id]);
-
-
-
+  // --- Laden von Article / WikiPage
   useEffect(() => {
     if (!id || Array.isArray(id)) return;
 
     const found = getArticleById(id);
     if (!found) {
       setArticle(null);
+      setSelectedPage(null);
       setAllBlocks([]);
       setVisibleBlocks([]);
       setLoading(false);
@@ -88,24 +199,28 @@ useEffect(() => {
 
     setArticle(found);
 
+    let blocks: EditorBlock[] = [];
     try {
-      const parsed = JSON.parse(found.content);
-      const blocks = Array.isArray(parsed) ? parsed : [];
-      setAllBlocks(blocks);
-
-      if (blocks.length > CHUNK_THRESHOLD) {
-        setVisibleBlocks([]);
-      } else {
-        setVisibleBlocks(blocks);
-      }
+      blocks = (JSON.parse(found.content) as ArticleBlock[]).map(b => ({
+        ...b,
+        language: b.language || "markdown",
+      }));
     } catch {
-      setAllBlocks([]);
-      setVisibleBlocks([]);
+      blocks = [];
     }
+
+    setAllBlocks(blocks);
+    setVisibleBlocks(blocks.length <= CHUNK_THRESHOLD ? blocks : []);
+    setSelectedPage({
+      id: found.id,
+      name: found.name,
+      content: blocks,
+    });
 
     setLoading(false);
   }, [id]);
 
+  // --- Chunked Loading bei sehr großen Artikeln
   useEffect(() => {
     if (!allBlocks.length || allBlocks.length <= CHUNK_THRESHOLD) {
       setVisibleBlocks(allBlocks);
@@ -132,12 +247,16 @@ useEffect(() => {
       switch (b.type) {
         case "heading": return `## ${b.content}\n`;
         case "text": return `${b.content}\n`;
-        case "list": return b.content.split("\n").map(l => `- ${l}`).join("\n") + "\n";
+        // case "list": return b.content.split("\n").map(l => `- ${l}`).join("\n") + "\n";
         case "code": return `\`\`\`${b.language || "markdown"}\n${b.content}\n\`\`\`\n`;
         case "quote": return `> ${b.content}\n`;
         case "divider": return `---\n`;
         case "image": return `![image](${b.content})\n`;
         case "video": return `[Video](${b.content})\n`;
+        case "table": return JSON.stringify(b.content, null, 2) + "\n";
+        case "section": return `### ${b.content}\n`;
+        case "collapsible": return `${b.content.title}\n${b.content.body}\n`;
+        case "alert": return `[${b.content.level}] ${b.content.text}\n`;
         default: return `${b.content}\n`;
       }
     }).join("\n");
@@ -171,55 +290,78 @@ useEffect(() => {
 
   return (
     <div className="flex bg-gray-50 min-h-screen">
-      {/* Sidebar */}
       <aside className="sticky top-0 h-screen flex-shrink-0">
-        <Sidebar onSelectPage={setSelectedPage} />
+        <SidebarWiki
+          onSelectPage={(page: Article | WikiPage) => {
+            if ("content" in page) {
+              let blocks: EditorBlock[] = [];
+              if (typeof page.content === "string") {
+                try {
+                  const parsed = JSON.parse(page.content) as Partial<EditorBlock>[];
+                  blocks = parsed.map((b: Partial<EditorBlock>) => ({
+                    id: b.id || crypto.randomUUID(),
+                    type: b.type || "text",
+                    content: b.content || "",
+                    language: b.language || "markdown",
+                  }));
+                } catch { blocks = []; }
+              } else {
+                blocks = page.content.map((b) => ({
+                  id: b.id,
+                  type: b.type,
+                  content: b.content,
+                  language: b.language || "markdown",
+                  children: b.children,
+                  level: b.level,
+                }));
+              }
+
+              setSelectedPage({
+                id: page.id,
+                name: page.name,
+                content: blocks,
+              });
+            }
+          }}
+        />
       </aside>
 
-      {/* Main Content */}
       <main className="flex-1 overflow-auto p-6">
-        {/* Header */}
-        <div className="grid grid-cols-2 grid-rows-2 gap-2 mb-2">
-          <div className="text-gray-500 text-sm">
-            Article &gt; Wiki &gt; {article?.name || ""}
+        <div className="mb-4">
+          {/* Reihe 1: Breadcrumb + Selected Page und Buttons */}
+          <div className="flex justify-between items-start">
+            <div>
+              {/* Breadcrumb */}
+              <div className="text-gray-500 text-sm">{article?.name ? `Article > Wiki > ${article.name}` : "Article > Wiki"}</div>
+              {/* Selected Page */}
+              {selectedPage && (
+                <h1 className="text-2xl font-bold">{selectedPage.name}</h1>
+              )}
+            </div>
+
+            {/* Buttons rechts */}
+            <div className="flex gap-2">
+              <button className="px-3 py-1.5 border rounded-lg text-sm shadow hover:bg-gray-100" onClick={() => router.push(`/wiki/${article?.id}/edit`)}>✏️ Edit</button>
+              <button className="px-3 py-1.5 border rounded-lg text-sm shadow hover:bg-gray-100" onClick={() => router.push(`/wiki/${article?.id}/edit2`)}>✏️ Edit 2</button>
+              <button className="px-3 py-1.5 border rounded-lg text-sm shadow hover:bg-gray-100" onClick={downloadMarkdown}>⬇️ Download MD</button>
+              <button className="px-3 py-1.5 border rounded-lg text-sm shadow hover:bg-gray-100" onClick={downloadPDF}>⬇️ Download PDF</button>
+            </div>
           </div>
-          <div className="flex justify-end gap-2">
-            <button
-              className="px-3 py-1.5 border rounded-lg text-sm shadow hover:bg-gray-100"
-              onClick={() => router.push(`/wiki/${article?.id}/edit`)}
-            >
-              ✏️ Edit
-            </button>
-            <button
-              className="px-3 py-1.5 border rounded-lg text-sm shadow hover:bg-gray-100"
-              onClick={() => router.push(`/wiki/${article?.id}/edit2`)}
-            >
-              ✏️ Edit 2
-            </button>
-            <button
-              className="px-3 py-1.5 border rounded-lg text-sm shadow hover:bg-gray-100"
-              onClick={downloadMarkdown}
-            >
-              ⬇️ Download MD
-            </button>
-            <button
-              className="px-3 py-1.5 border rounded-lg text-sm shadow hover:bg-gray-100"
-              onClick={downloadPDF}
-            >
-              ⬇️ Download PDF
-            </button>
-          </div>
-          <div className="text-gray-600 text-xs">
-            Last edited by <span className="font-bold">{article?.creator || ""} a minute ago</span>
-          </div>
-          <div className="text-xs text-gray-400 flex justify-end">
-            {article?.views || 0} views
+
+          {/* Reihe 2: Last edited links, Views rechts */}
+          <div className="flex justify-between mt-2 items-center text-xs text-gray-600">
+            <div>
+              Last edited by <span className="font-bold">{article?.creator || ""} a minute ago</span>
+            </div>
+            <div className="text-gray-400">
+              {article?.views || 0} views
+            </div>
           </div>
         </div>
 
+
         <hr className="mb-4 border-gray-300" />
 
-        {/* Skeleton / Placeholder */}
         {loading ? (
           <ArticleSkeleton blocksCount={10} />
         ) : !selectedPage ? (
@@ -228,19 +370,20 @@ useEffect(() => {
           </div>
         ) : (
           <div ref={pdfRef}>
-            <h1 className="text-2xl font-bold mb-4">{selectedPage.name}</h1>
-            {selectedPage.content && selectedPage.content.length > 0 ? (
+            
+            {selectedPage.content.length > 0 ? (
               <Virtuoso
                 style={{ height: "80vh", width: "100%" }}
                 data={selectedPage.content}
                 increaseViewportBy={{ top: 600, bottom: 600 }}
-                components={{
-                  Item: ({ children, ...props }) => <div {...props} style={{ padding: "2px 0" }}>{children}</div>,
-                }}
+                components={{ Item: ({ children, ...props }) => <div {...props} style={{ padding: "2px 0" }}>{children}</div> }}
                 itemContent={(index, block) => <BlockMemo key={block.id} block={block} />}
               />
             ) : (
-              <p className="text-gray-500">Kein Inhalt für diese Seite.</p>
+              <div>
+                <p className="text-gray-500">Kein Inhalt für diese Seite.<br />Nutze unserern Editor uns lege neues Wissen an.</p>
+                <button className="px-3 mt-4 py-1.5 border rounded-lg text-sm shadow hover:bg-gray-100" onClick={() => router.push(`/wiki/${article?.id}/edit2`)}>✏️ Loslegen</button>
+              </div>
             )}
           </div>
         )}

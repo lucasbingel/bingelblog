@@ -5,7 +5,6 @@ import { DndContext, DragEndEvent, closestCenter } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
 import EditorToolbar from "./EditorToolbar";
 import EditorCanvas from "./EditorCanvas";
-import Renderer from "./Renderer";
 import { makeBlock, defaultContentFor } from "./blockFactory";
 import { useEditLock } from "./useEditLock";
 import type { EditorBlock, EditorBlockType } from "./types";
@@ -14,8 +13,6 @@ interface Props {
   articleId: string;
   initialBlocks?: EditorBlock[];
   onSave: (blocks: EditorBlock[]) => void;
-  showPreview?: boolean;
-  showPalette?: boolean;
   showToolbar?: boolean;
   contentClassName?: string;
   onBlocksChange?: (blocks: EditorBlock[]) => void;
@@ -25,8 +22,6 @@ export default function EditorLayout({
   articleId,
   initialBlocks = [],
   onSave,
-  showPreview = false,
-  showPalette = true,
   showToolbar = true,
   contentClassName = "",
   onBlocksChange,
@@ -34,9 +29,7 @@ export default function EditorLayout({
   const [blocks, setBlocks] = useState<EditorBlock[]>(initialBlocks);
   const { lockedByOther } = useEditLock(articleId);
 
-  useEffect(() => {
-    setBlocks(initialBlocks);
-  }, [initialBlocks]);
+  useEffect(() => setBlocks(initialBlocks), [initialBlocks]);
 
   const commitBlocks = (newBlocks: EditorBlock[]) => {
     setBlocks(newBlocks);
@@ -62,7 +55,7 @@ export default function EditorLayout({
   const duplicateBlock = (block: EditorBlock, insertAfterId: string) => {
     const index = blocks.findIndex((b) => b.id === insertAfterId);
     if (index === -1) return;
-    const dupe: EditorBlock = { ...block, id: `${Date.now()}-${Math.random().toString(36).slice(2,6)}` };
+    const dupe: EditorBlock = { ...block, id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}` };
     const copy = [...blocks];
     copy.splice(index + 1, 0, dupe);
     commitBlocks(copy);
@@ -126,7 +119,7 @@ export default function EditorLayout({
           <div className={`grid gap-3 ${contentClassName}`}>
             <EditorCanvas
               blocks={blocks}
-              updateBlock={updateBlock} // <-- NEU Typ Partial<EditorBlock>
+              updateBlock={updateBlock}
               deleteBlock={deleteBlock}
               duplicateBlock={duplicateBlock}
               moveBlockUp={moveBlockUp}
@@ -138,15 +131,6 @@ export default function EditorLayout({
           </div>
         </SortableContext>
       </DndContext>
-
-      {showPreview && (
-        <div className="hidden lg:block mt-6">
-          <div className="rounded-xl border bg-white p-4">
-            <div className="font-semibold mb-3">Live Preview</div>
-            <Renderer blocks={blocks} />
-          </div>
-        </div>
-      )}
     </div>
   );
 }

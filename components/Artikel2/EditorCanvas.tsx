@@ -59,7 +59,7 @@ export default function EditorCanvas({
   onQuickAddText,
 }: Props) {
   return (
-    <div className="mx-auto max-w-7xl w-full">
+    <div className="mx-auto max-w-7xl p-6 w-full">
       <SortableContext items={blocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>
         <div className={`grid gap-3 ${contentClassName}`}>
           {blocks.map((b) => (
