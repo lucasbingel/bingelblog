@@ -2,6 +2,7 @@ import { ReactNode } from "react";
 
 // lib/articles.ts  (Ausschnitt)
 export type ArticleBlock = {
+  language: string;
   id: string;
   type:
     | "text"
@@ -30,7 +31,7 @@ export type Article = {
 let articles: Record<string, Article> = {
   R70A21: {
     id: "R70A21",
-    name: "Erster Artikel",
+    name: "Alrounder Artikel",
     creator: "Admin",
     views: 123,
     content: JSON.stringify([
@@ -48,7 +49,7 @@ let articles: Record<string, Article> = {
   },
   R70A22: {
     id: "R70A22",
-    name: "zweiter Artikel",
+    name: "Leerer Artikel",
     creator: "Admin",
     views: 12311,
     content: JSON.stringify([
@@ -57,7 +58,7 @@ let articles: Record<string, Article> = {
     category: undefined,
     description: undefined,
     lastUpdate: undefined,
-    tag: "info"
+    tag: "Design"
   },
     R70A23: {
     id: "R70A23",
@@ -110,6 +111,7 @@ let articles: Record<string, Article> = {
     content: JSON.stringify(
       Array.from({ length: 5000 }).map((_, i) => ({
         id: `b${i}`,
+        language: "javascript",
         type: i % 5 === 0 ? "heading" : i % 5 === 1 ? "text" : i % 5 === 2 ? "code" : i % 5 === 3 ? "list" : "quote",
         content:
           i % 5 === 0
@@ -165,6 +167,7 @@ bitte in eine zeile
         id: "b2",
         type: "code",
         content: "console.log('Sehr langer Codeblock');\n".repeat(200),
+        language: "javascript"
       },
       {
         id: "b3",
@@ -177,6 +180,168 @@ bitte in eine zeile
     lastUpdate: undefined,
     tag: "performance",
   },
+  R70A27: {
+  id: "R70A27",
+  name: "⚡ Code Sprachen Test",
+  creator: "Admin",
+  views: 100,
+  content: JSON.stringify([
+    {
+      id: "b0",
+      type: "code",
+      content: `function greet(name) {
+  console.log(\`Hello, \${name}!\`);
+}
+greet("World");`,
+      language: "javascript",
+    },
+    {
+      id: "b1",
+      type: "code",
+      content: `function add(a: number, b: number): number {
+  return a + b;
+}
+console.log(add(2, 3));`,
+      language: "typescript",
+    },
+    {
+      id: "b2",
+      type: "code",
+      content: `def square(x):
+    return x * x
+
+print(square(5))`,
+      language: "python",
+    },
+    {
+      id: "b3",
+      type: "code",
+      content: `public class Main {
+  public static void main(String[] args) {
+    System.out.println("Hallo Java!");
+  }
+}`,
+      language: "java",
+    },
+    {
+      id: "b4",
+      type: "code",
+      content: `class Program {
+  static void Main() {
+    System.Console.WriteLine("Hello C#!");
+  }
+}`,
+      language: "csharp",
+    },
+    {
+      id: "b5",
+      type: "code",
+      content: `#include <iostream>
+using namespace std;
+
+int main() {
+  cout << "Hallo C++!" << endl;
+  return 0;
+}`,
+      language: "cpp",
+    },
+    {
+      id: "b6",
+      type: "code",
+      content: `<?php
+echo "Hello from PHP!";
+?>`,
+      language: "php",
+    },
+    {
+      id: "b7",
+      type: "code",
+      content: `package main
+import "fmt"
+
+func main() {
+  fmt.Println("Hello Go!")
+}`,
+      language: "go",
+    },
+    {
+      id: "b8",
+      type: "code",
+      content: `fn main() {
+    println!("Hello Rust!");
+}`,
+      language: "rust",
+    },
+    {
+      id: "b9",
+      type: "code",
+      content: `SELECT id, name FROM users WHERE active = 1;`,
+      language: "sql",
+    },
+    {
+      id: "b10",
+      type: "code",
+      content: `<!DOCTYPE html>
+<html>
+  <body>
+    <h1>Hello HTML!</h1>
+  </body>
+</html>`,
+      language: "html",
+    },
+    {
+      id: "b11",
+      type: "code",
+      content: `body {
+  background: #222;
+  color: white;
+}`,
+      language: "css",
+    },
+    {
+      id: "b12",
+      type: "code",
+      content: `{
+  "name": "Max",
+  "age": 30
+}`,
+      language: "json",
+    },
+    {
+      id: "b13",
+      type: "code",
+      content: `echo "Hello from Bash!"`,
+      language: "bash",
+    },
+    {
+      id: "b14",
+      type: "code",
+      content: `name: Max
+age: 30`,
+      language: "yaml",
+    },
+    {
+      id: "b15",
+      type: "code",
+      content: `# Hallo Markdown
+- Punkt 1
+- Punkt 2`,
+      language: "markdown",
+    },
+    {
+      id: "b16",
+      type: "code",
+      content: `Write-Output "Hello PowerShell!"
+Get-Process | Select-Object -First 5`,
+      language: "ps1",
+    },
+  ]),
+  category: undefined,
+  description: undefined,
+  lastUpdate: undefined,
+  tag: "design",
+}
+
 };
   
 

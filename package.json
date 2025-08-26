@@ -19,6 +19,8 @@
     "next": "15.5.0",
     "react": "^18.2.0",
     "react-apexcharts": "^1.7.0",
+    "react-dnd": "^16.0.1",
+    "react-dnd-html5-backend": "^16.0.1",
     "react-dom": "^18.2.0",
     "react-markdown": "^10.1.0",
     "react-syntax-highlighter": "^15.6.3",
@@ -28,6 +30,7 @@
     "recharts": "^3.1.2",
     "rehype-raw": "^7.0.0",
     "swr": "^2.3.6",
+    "uuid": "^11.1.0",
     "yahoo-finance2": "^2.13.3"
   },
   "devDependencies": {
@@ -36,9 +39,11 @@
     "@types/html2pdf.js": "^0.10.0",
     "@types/node": "^20",
     "@types/react": "^19.1.11",
+    "@types/react-dnd": "^2.0.36",
     "@types/react-dom": "^19",
     "@types/react-syntax-highlighter": "^15.5.13",
     "@types/react-table": "^7.7.20",
+    "@types/uuid": "^10.0.0",
     "eslint": "^9",
     "eslint-config-next": "15.5.0",
     "tailwindcss": "^4",

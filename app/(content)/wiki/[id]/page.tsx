@@ -2,57 +2,34 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState, memo, useMemo, useRef } from "react";
-import Sidebar from "@/components/Artikel2/Sidebar";
+import Sidebar, { WikiPage } from "@/components/Artikel2/Sidebar";
 import ArticleSkeleton from "@/components/Artikel2/ArtikelSkeleton";
 import { Article, ArticleBlock, getArticleById } from "@/lib/articles";
 import CodeBlock from "@/components/Artikel/Items/CodeBlock";
 import { Virtuoso } from "react-virtuoso";
-import html2pdf from "html2pdf.js";
+
+// html2pdf nur client-side importieren
+const html2pdf = typeof window !== "undefined" ? require("html2pdf.js") : null;
 
 const CodeBlockMemo = memo(CodeBlock);
 
-// Memo für Text/Heading/Quote/Divider/List/Image/Video
 const BlockMemo = memo(({ block }: { block: ArticleBlock }) => {
   switch (block.type) {
-    case "heading":
-      return <h2 className="text-2xl font-bold my-2">{block.content}</h2>;
-    case "text":
-      return <p className="my-2 leading-relaxed">{block.content}</p>;
-    case "list":
-      return (
-        <ul className="list-disc ml-6 my-2">
-          {block.content.split("\n").map((item, idx) => (
-            <li key={idx}>{item}</li>
-          ))}
-        </ul>
-      );
-    case "image":
-      return <img src={block.content} alt="" className="rounded my-2 w-full" loading="lazy" />;
-    case "video":
-      return (
-        <iframe
-          src={block.content}
-          title="Video"
-          frameBorder="0"
-          allowFullScreen
-          className="w-full h-64 my-2 rounded"
-        />
-      );
-    case "quote":
-      return <blockquote className="border-l-4 border-blue-500 italic pl-4 bg-gray-50 my-2">{block.content}</blockquote>;
-    case "divider":
-      return <hr className="my-4 border-gray-300" />;
-    case "code":
-      return <CodeBlockMemo value={block.content} language="js" />;
-    default:
-      return <p>{block.content}</p>;
+    case "heading": return <h2 className="text-2xl font-bold my-2">{block.content}</h2>;
+    case "text": return <p className="my-2 leading-relaxed">{block.content}</p>;
+    case "list": return <ul className="list-disc ml-6 my-2">{block.content.split("\n").map((item, idx) => <li key={idx}>{item}</li>)}</ul>;
+    case "image": return <img src={block.content} alt="" className="rounded my-2 w-full" loading="lazy" />;
+    case "video": return <iframe src={block.content} title="Video" frameBorder="0" allowFullScreen className="w-full h-64 my-2 rounded" />;
+    case "quote": return <blockquote className="border-l-4 border-blue-500 italic pl-4 bg-gray-50 my-2">{block.content}</blockquote>;
+    case "divider": return <hr className="my-4 border-gray-300" />;
+    case "code": return <CodeBlockMemo value={block.content} language={block.language || "markdown"} />;
+    default: return <p>{block.content}</p>;
   }
 });
 
 const CHUNK_SIZE = 20;
 const CHUNK_THRESHOLD = 1000;
 
-// Hilfsfunktion: problematische Farben / Lab entfernen
 function sanitizeStyles(element: HTMLElement) {
   const allElements = element.querySelectorAll("*");
   allElements.forEach(el => {
@@ -73,7 +50,30 @@ export default function ArticlePage() {
   const [visibleBlocks, setVisibleBlocks] = useState<ArticleBlock[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // --- Artikel laden
+ // statt: const [selectedPage, setSelectedPage] = useState<WikiPage | null>(null);
+// statt:
+// const [selectedPage, setSelectedPage] = useState<WikiPage | null>(() => { ... });
+const [selectedPage, setSelectedPage] = useState<WikiPage | null>(null);
+
+useEffect(() => {
+  if (!id || Array.isArray(id)) return; // keine gültige ID
+
+  const article = getArticleById(id);
+  if (!article) {
+    setSelectedPage(null);
+    return;
+  }
+
+  const blocks = JSON.parse(article.content) as ArticleBlock[];
+  setSelectedPage({
+    id: article.id,
+    name: article.name,
+    content: blocks,
+  });
+}, [id]);
+
+
+
   useEffect(() => {
     if (!id || Array.isArray(id)) return;
 
@@ -106,7 +106,6 @@ export default function ArticlePage() {
     setLoading(false);
   }, [id]);
 
-  // --- Chunked Loading optimiert mit requestIdleCallback
   useEffect(() => {
     if (!allBlocks.length || allBlocks.length <= CHUNK_THRESHOLD) {
       setVisibleBlocks(allBlocks);
@@ -117,10 +116,8 @@ export default function ArticlePage() {
     const loadChunk = () => {
       const nextChunk = allBlocks.slice(currentIndex, currentIndex + CHUNK_SIZE);
       if (!nextChunk.length) return;
-
       setVisibleBlocks(prev => [...prev, ...nextChunk]);
       currentIndex += CHUNK_SIZE;
-
       if (currentIndex < allBlocks.length) requestIdleCallback(loadChunk);
     };
 
@@ -129,16 +126,14 @@ export default function ArticlePage() {
 
   const renderedBlocks = useMemo(() => visibleBlocks, [visibleBlocks]);
 
-  // --- Download als Markdown
   const downloadMarkdown = () => {
     if (!renderedBlocks.length) return;
-
     const md = renderedBlocks.map(b => {
       switch (b.type) {
         case "heading": return `## ${b.content}\n`;
         case "text": return `${b.content}\n`;
         case "list": return b.content.split("\n").map(l => `- ${l}`).join("\n") + "\n";
-        case "code": return `\`\`\`js\n${b.content}\n\`\`\`\n`;
+        case "code": return `\`\`\`${b.language || "markdown"}\n${b.content}\n\`\`\`\n`;
         case "quote": return `> ${b.content}\n`;
         case "divider": return `---\n`;
         case "image": return `![image](${b.content})\n`;
@@ -156,9 +151,8 @@ export default function ArticlePage() {
     URL.revokeObjectURL(url);
   };
 
-  // --- Download als PDF
   const downloadPDF = () => {
-    if (!pdfRef.current) return;
+    if (!pdfRef.current || !html2pdf) return;
     sanitizeStyles(pdfRef.current);
 
     html2pdf()
@@ -177,10 +171,12 @@ export default function ArticlePage() {
 
   return (
     <div className="flex bg-gray-50 min-h-screen">
+      {/* Sidebar */}
       <aside className="sticky top-0 h-screen flex-shrink-0">
-        <Sidebar />
+        <Sidebar onSelectPage={setSelectedPage} />
       </aside>
 
+      {/* Main Content */}
       <main className="flex-1 overflow-auto p-6">
         {/* Header */}
         <div className="grid grid-cols-2 grid-rows-2 gap-2 mb-2">
@@ -226,27 +222,26 @@ export default function ArticlePage() {
         {/* Skeleton / Placeholder */}
         {loading ? (
           <ArticleSkeleton blocksCount={10} />
-        ) : renderedBlocks.length === 0 ? (
+        ) : !selectedPage ? (
           <div className="p-6 mt-30 text-gray-500 text-center">
-            Kein Inhalt vorhanden. <br /> Bitte hinterlege neues Wissen und starte mit dem Editor.<br />
-            <button
-              className="mt-4 px-4 py-2 border rounded-lg shadow hover:bg-gray-100"
-              onClick={() => router.push(`/wiki/${article?.id}/edit2`)}
-            >
-              ✏️ Loslegen
-            </button>
+            Wähle eine Seite aus der Sidebar aus, um Inhalte anzuzeigen.
           </div>
         ) : (
           <div ref={pdfRef}>
-            <Virtuoso
-              style={{ height: "80vh", width: "100%" }}
-              data={renderedBlocks}
-              increaseViewportBy={{ top: 600, bottom: 600 }}
-              components={{
-                Item: ({ children, ...props }) => <div {...props} style={{ padding: "2px 0" }}>{children}</div>,
-              }}
-              itemContent={(index, block) => <BlockMemo key={block.id} block={block} />}
-            />
+            <h1 className="text-2xl font-bold mb-4">{selectedPage.name}</h1>
+            {selectedPage.content && selectedPage.content.length > 0 ? (
+              <Virtuoso
+                style={{ height: "80vh", width: "100%" }}
+                data={selectedPage.content}
+                increaseViewportBy={{ top: 600, bottom: 600 }}
+                components={{
+                  Item: ({ children, ...props }) => <div {...props} style={{ padding: "2px 0" }}>{children}</div>,
+                }}
+                itemContent={(index, block) => <BlockMemo key={block.id} block={block} />}
+              />
+            ) : (
+              <p className="text-gray-500">Kein Inhalt für diese Seite.</p>
+            )}
           </div>
         )}
       </main>

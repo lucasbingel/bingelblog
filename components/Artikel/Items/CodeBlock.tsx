@@ -15,14 +15,12 @@ export default function CodeBlock({
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
-    if (typeof window === "undefined") return; // Sicherstellen, dass wir im Client sind
+    if (typeof window === "undefined") return;
 
     try {
-      // Clipboard API
       if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(value);
       } else {
-        // Fallback für ältere Browser / iOS Safari
         const textArea = document.createElement("textarea");
         textArea.value = value;
         document.body.appendChild(textArea);
@@ -31,7 +29,6 @@ export default function CodeBlock({
         textArea.remove();
       }
 
-      // UI Feedback
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch (err) {
@@ -41,21 +38,27 @@ export default function CodeBlock({
 
   return (
     <div className="relative my-4 group">
-      <button
-        onClick={handleCopy}
-        className={`absolute top-2 right-2 flex items-center gap-1 text-xs px-2 py-1 rounded transition-all 
-          ${copied ? "bg-green-200 text-black" : "bg-gray-800 text-white opacity-80 hover:opacity-100"}`}
-      >
-        {copied ? (
-          <>
-            <span className="font-bold text-sm">✅</span> Copied Code
-          </>
-        ) : (
-          <>
-            <Copy className="w-3 h-3" /> Copy Code
-          </>
-        )}
-      </button>
+      <div className="absolute top-2 right-2 flex items-center gap-2">
+        <span className="text-[10px] text-gray-400 bg-gray-900/80 px-2 py-0.5 rounded">
+          {language}
+        </span>
+
+        <button
+          onClick={handleCopy}
+          className={`flex items-center gap-1 text-xs px-2 py-1 rounded transition-all 
+            ${copied ? "bg-green-200 text-black" : "bg-gray-800 text-white opacity-80 hover:opacity-100"}`}
+        >
+          {copied ? (
+            <>
+              <span className="font-bold text-sm">✅</span> Copied
+            </>
+          ) : (
+            <>
+              <Copy className="w-3 h-3" /> Copy
+            </>
+          )}
+        </button>
+      </div>
 
       <SyntaxHighlighter
         language={language}

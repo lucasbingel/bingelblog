@@ -10,6 +10,7 @@ export type EditorBlockType =
   | "divider";
 
 export interface EditorBlock {
+  language?: string;
   id: string;
   type: EditorBlockType;
   content: string; // je nach type: text, url, markdown-like list (zeilenweise), etc.

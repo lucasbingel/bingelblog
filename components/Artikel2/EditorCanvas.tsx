@@ -8,7 +8,7 @@ import { useState } from "react";
 interface Props {
   blocks: EditorBlock[];
   convertType: (id: string, newType: EditorBlockType) => void;
-  updateBlock: (id: string, content: string) => void;
+  updateBlock: (id: string, updates: Partial<EditorBlock>) => void; // <-- angepasst
   deleteBlock: (id: string) => void;
   duplicateBlock: (block: EditorBlock, insertAfterId: string) => void;
   moveBlockUp: (id: string) => void;
@@ -60,13 +60,13 @@ export default function EditorCanvas({
 }: Props) {
   return (
     <div className="mx-auto max-w-7xl w-full">
-      <SortableContext items={blocks.map(b => b.id)} strategy={verticalListSortingStrategy}>
+      <SortableContext items={blocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>
         <div className={`grid gap-3 ${contentClassName}`}>
-          {blocks.map(b => (
+          {blocks.map((b) => (
             <BlockItem
               key={b.id}
               block={b}
-              updateBlock={updateBlock}
+              updateBlock={updateBlock} // <-- angepasst
               deleteBlock={deleteBlock}
               duplicateBlock={duplicateBlock}
               moveBlockUp={moveBlockUp}

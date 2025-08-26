@@ -1,4 +1,3 @@
-// components/Artikel2/Renderer.tsx
 "use client";
 
 import CodeBlock from "@/components/Artikel/Items/CodeBlock";
@@ -18,11 +17,17 @@ export default function Renderer({ blocks }: { blocks: EditorBlock[] }) {
           case "text":
             return <p key={block.id}>{block.content}</p>;
           case "code":
-            return <CodeBlock key={block.id} value={block.content} language="js" />;
+            return (
+              <CodeBlock
+                key={block.id}
+                value={block.content}
+                language={block.language || "javascript"}
+              />
+            );
           case "list":
             return (
               <ul key={block.id} className="list-disc ml-6">
-                {block.content.split("\n").map((it, idx) => (
+                {(block.content || "").split("\n").map((it, idx) => (
                   <li key={idx}>{it}</li>
                 ))}
               </ul>
