@@ -1,26 +1,76 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState, memo } from "react";
+import { useEffect, useState, memo, useMemo, useRef } from "react";
 import Sidebar from "@/components/Artikel2/Sidebar";
 import ArticleSkeleton from "@/components/Artikel2/ArtikelSkeleton";
 import { Article, ArticleBlock, getArticleById } from "@/lib/articles";
 import CodeBlock from "@/components/Artikel/Items/CodeBlock";
+import { Virtuoso } from "react-virtuoso";
+import html2pdf from "html2pdf.js";
 
 const CodeBlockMemo = memo(CodeBlock);
 
-const CHUNK_SIZE = 5;
-const INTERVAL_MS = 50;
+// Memo für Text/Heading/Quote/Divider/List/Image/Video
+const BlockMemo = memo(({ block }: { block: ArticleBlock }) => {
+  switch (block.type) {
+    case "heading":
+      return <h2 className="text-2xl font-bold my-2">{block.content}</h2>;
+    case "text":
+      return <p className="my-2 leading-relaxed">{block.content}</p>;
+    case "list":
+      return (
+        <ul className="list-disc ml-6 my-2">
+          {block.content.split("\n").map((item, idx) => (
+            <li key={idx}>{item}</li>
+          ))}
+        </ul>
+      );
+    case "image":
+      return <img src={block.content} alt="" className="rounded my-2 w-full" loading="lazy" />;
+    case "video":
+      return (
+        <iframe
+          src={block.content}
+          title="Video"
+          frameBorder="0"
+          allowFullScreen
+          className="w-full h-64 my-2 rounded"
+        />
+      );
+    case "quote":
+      return <blockquote className="border-l-4 border-blue-500 italic pl-4 bg-gray-50 my-2">{block.content}</blockquote>;
+    case "divider":
+      return <hr className="my-4 border-gray-300" />;
+    case "code":
+      return <CodeBlockMemo value={block.content} language="js" />;
+    default:
+      return <p>{block.content}</p>;
+  }
+});
+
+const CHUNK_SIZE = 20;
+const CHUNK_THRESHOLD = 1000;
+
+// Hilfsfunktion: problematische Farben / Lab entfernen
+function sanitizeStyles(element: HTMLElement) {
+  const allElements = element.querySelectorAll("*");
+  allElements.forEach(el => {
+    const style = getComputedStyle(el);
+    if (style.color.startsWith("lab")) (el as HTMLElement).style.color = "black";
+    if (style.backgroundColor.startsWith("lab")) (el as HTMLElement).style.backgroundColor = "white";
+  });
+}
 
 export default function ArticlePage() {
   const params = useParams();
   const id = params?.id;
   const router = useRouter();
+  const pdfRef = useRef<HTMLDivElement>(null);
 
   const [article, setArticle] = useState<Article | null>(null);
   const [allBlocks, setAllBlocks] = useState<ArticleBlock[]>([]);
   const [visibleBlocks, setVisibleBlocks] = useState<ArticleBlock[]>([]);
-  const [progress, setProgress] = useState(0);
   const [loading, setLoading] = useState(true);
 
   // --- Artikel laden
@@ -28,7 +78,6 @@ export default function ArticlePage() {
     if (!id || Array.isArray(id)) return;
 
     const found = getArticleById(id);
-
     if (!found) {
       setArticle(null);
       setAllBlocks([]);
@@ -41,48 +90,88 @@ export default function ArticlePage() {
 
     try {
       const parsed = JSON.parse(found.content);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        setAllBlocks(parsed);
+      const blocks = Array.isArray(parsed) ? parsed : [];
+      setAllBlocks(blocks);
+
+      if (blocks.length > CHUNK_THRESHOLD) {
+        setVisibleBlocks([]);
       } else {
-        setAllBlocks([{ id: `${Date.now()}`, type: "text", content: found.content }]);
+        setVisibleBlocks(blocks);
       }
     } catch {
-      setAllBlocks([{ id: `${Date.now()}`, type: "text", content: found.content }]);
+      setAllBlocks([]);
+      setVisibleBlocks([]);
     }
 
-    setVisibleBlocks([]);
-    setProgress(0);
     setLoading(false);
   }, [id]);
 
-  // --- Chunk-Ladung ab Index 0
-useEffect(() => {
-  if (!allBlocks.length) return;
-
-  let currentIndex = 0 - CHUNK_SIZE;
-
-  const interval = setInterval(() => {
-    setVisibleBlocks(prev => {
-      const nextChunk = allBlocks.slice(currentIndex, currentIndex + CHUNK_SIZE);
-      const next = [...prev, ...nextChunk];
-
-      setProgress(Math.min((next.length / allBlocks.length) * 100, 100));
-
-      return next;
-    });
-
-    // Index **nach dem Hinzufügen** aktualisieren
-    currentIndex += CHUNK_SIZE;
-
-    if (currentIndex >= allBlocks.length) {
-      clearInterval(interval);
-      setProgress(100);
+  // --- Chunked Loading optimiert mit requestIdleCallback
+  useEffect(() => {
+    if (!allBlocks.length || allBlocks.length <= CHUNK_THRESHOLD) {
+      setVisibleBlocks(allBlocks);
+      return;
     }
-  }, INTERVAL_MS);
 
-  return () => clearInterval(interval);
-}, [allBlocks]);
+    let currentIndex = 0;
+    const loadChunk = () => {
+      const nextChunk = allBlocks.slice(currentIndex, currentIndex + CHUNK_SIZE);
+      if (!nextChunk.length) return;
 
+      setVisibleBlocks(prev => [...prev, ...nextChunk]);
+      currentIndex += CHUNK_SIZE;
+
+      if (currentIndex < allBlocks.length) requestIdleCallback(loadChunk);
+    };
+
+    requestIdleCallback(loadChunk);
+  }, [allBlocks]);
+
+  const renderedBlocks = useMemo(() => visibleBlocks, [visibleBlocks]);
+
+  // --- Download als Markdown
+  const downloadMarkdown = () => {
+    if (!renderedBlocks.length) return;
+
+    const md = renderedBlocks.map(b => {
+      switch (b.type) {
+        case "heading": return `## ${b.content}\n`;
+        case "text": return `${b.content}\n`;
+        case "list": return b.content.split("\n").map(l => `- ${l}`).join("\n") + "\n";
+        case "code": return `\`\`\`js\n${b.content}\n\`\`\`\n`;
+        case "quote": return `> ${b.content}\n`;
+        case "divider": return `---\n`;
+        case "image": return `![image](${b.content})\n`;
+        case "video": return `[Video](${b.content})\n`;
+        default: return `${b.content}\n`;
+      }
+    }).join("\n");
+
+    const blob = new Blob([md], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${article?.name || "article"}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // --- Download als PDF
+  const downloadPDF = () => {
+    if (!pdfRef.current) return;
+    sanitizeStyles(pdfRef.current);
+
+    html2pdf()
+      .set({
+        margin: 10,
+        filename: `${article?.name || "article"}.pdf`,
+        image: { type: "jpeg", quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+      })
+      .from(pdfRef.current)
+      .save();
+  };
 
   if (!article && !loading) return <div className="p-6 text-red-500">Article not found</div>;
 
@@ -111,6 +200,18 @@ useEffect(() => {
             >
               ✏️ Edit 2
             </button>
+            <button
+              className="px-3 py-1.5 border rounded-lg text-sm shadow hover:bg-gray-100"
+              onClick={downloadMarkdown}
+            >
+              ⬇️ Download MD
+            </button>
+            <button
+              className="px-3 py-1.5 border rounded-lg text-sm shadow hover:bg-gray-100"
+              onClick={downloadPDF}
+            >
+              ⬇️ Download PDF
+            </button>
           </div>
           <div className="text-gray-600 text-xs">
             Last edited by <span className="font-bold">{article?.creator || ""} a minute ago</span>
@@ -122,61 +223,31 @@ useEffect(() => {
 
         <hr className="mb-4 border-gray-300" />
 
-        {/* Progress */}
-        {visibleBlocks.length < allBlocks.length && (
-          <div className="mb-4 w-full bg-gray-200 h-2 rounded">
-            <div
-              className="bg-blue-500 h-2 rounded transition-all"
-              style={{ width: `${progress}%` }}
+        {/* Skeleton / Placeholder */}
+        {loading ? (
+          <ArticleSkeleton blocksCount={10} />
+        ) : renderedBlocks.length === 0 ? (
+          <div className="p-6 mt-30 text-gray-500 text-center">
+            Kein Inhalt vorhanden. <br /> Bitte hinterlege neues Wissen und starte mit dem Editor.<br />
+            <button
+              className="mt-4 px-4 py-2 border rounded-lg shadow hover:bg-gray-100"
+              onClick={() => router.push(`/wiki/${article?.id}/edit2`)}
+            >
+              ✏️ Loslegen
+            </button>
+          </div>
+        ) : (
+          <div ref={pdfRef}>
+            <Virtuoso
+              style={{ height: "80vh", width: "100%" }}
+              data={renderedBlocks}
+              increaseViewportBy={{ top: 600, bottom: 600 }}
+              components={{
+                Item: ({ children, ...props }) => <div {...props} style={{ padding: "2px 0" }}>{children}</div>,
+              }}
+              itemContent={(index, block) => <BlockMemo key={block.id} block={block} />}
             />
           </div>
-        )}
-
-        {/* Skeleton nur anzeigen, wenn noch keine Blöcke geladen */}
-        {visibleBlocks.length === 0 ? (
-          <ArticleSkeleton blocksCount={Math.max(10, allBlocks.length)} />
-        ) : (
-          <article className="prose max-w-full">
-            {visibleBlocks.map(block => {
-              switch (block.type) {
-                case "heading":
-                  return <h2 key={block.id} className="text-2xl font-bold">{block.content}</h2>;
-                case "text":
-                  return <p key={block.id}>{block.content}</p>;
-                case "code":
-                  return <CodeBlockMemo key={block.id} value={block.content} language="js" />;
-                case "list":
-                  return (
-                    <ul key={block.id} className="list-disc ml-6">
-                      {block.content.split("\n").map((item, idx) => <li key={idx}>{item}</li>)}
-                    </ul>
-                  );
-                case "image":
-                  return <img key={block.id} src={block.content} alt="" className="rounded" loading="lazy" />;
-                case "quote":
-                  return <blockquote key={block.id} className="border-l-4 border-blue-500 italic pl-4 my-2 bg-gray-50">{block.content}</blockquote>;
-                case "video":
-                  return (
-                    <div key={block.id} className="my-4">
-                      <iframe
-                        width="560"
-                        height="315"
-                        src={block.content}
-                        title="Video"
-                        frameBorder="0"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                        allowFullScreen
-                        className="w-full h-64 rounded"
-                      ></iframe>
-                    </div>
-                  );
-                case "divider":
-                  return <hr key={block.id} className="my-4 border-gray-300" />;
-                default:
-                  return null;
-              }
-            })}
-          </article>
         )}
       </main>
     </div>

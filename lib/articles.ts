@@ -102,7 +102,83 @@ let articles: Record<string, Article> = {
     lastUpdate: undefined,
     tag: undefined
   },
+    R70A25: {
+    id: "R70A25",
+    name: "⚡ Performance Test 5000 Blöcke",
+    creator: "Admin",
+    views: 12311,
+    content: JSON.stringify(
+      Array.from({ length: 5000 }).map((_, i) => ({
+        id: `b${i}`,
+        type: i % 5 === 0 ? "heading" : i % 5 === 1 ? "text" : i % 5 === 2 ? "code" : i % 5 === 3 ? "list" : "quote",
+        content:
+          i % 5 === 0
+            ? `Kapitel ${i / 5}`
+            : i % 5 === 1
+            ? `Dies ist ein Textblock Nummer ${i}`
+            : i % 5 === 2
+            ? `"use client";
+
+type ArticleSkeletonProps = {
+  blocksCount?: number;
 };
+
+export default function ArticleSkeleton({ blocksCount = 8 }: ArticleSkeletonProps) {
+  return (
+    <div className="space-y-4">
+      {Array.from({ length: blocksCount }).map((_, i) => (
+        <div key={i} className="h-6 bg-gray-300 rounded animate-pulse" />
+      ))}
+    </div>
+  );
+}
+
+bitte in eine zeile
+ console.log("Block ${i}");`
+            : i % 5 === 3
+            ? `Punkt A${i}\nPunkt B${i}\nPunkt C${i}`
+            : `Zitat Nummer ${i}`,
+      }))
+    ),
+    category: undefined,
+    description: undefined,
+    lastUpdate: undefined,
+    tag: "info"
+  },
+  R70A26: {
+    id: "R70A26",
+    name: "⚡ Performance Test: Wenige große Blöcke",
+    creator: "Admin",
+    views: 100,
+    content: JSON.stringify([
+      {
+        id: "b0",
+        type: "heading",
+        content: "Header ".repeat(1000), // sehr großer Textblock
+      },
+      {
+        id: "b1",
+        type: "text",
+        content: "Lorem ipsum ".repeat(1000), // sehr großer Textblock
+      },
+      {
+        id: "b2",
+        type: "code",
+        content: "console.log('Sehr langer Codeblock');\n".repeat(200),
+      },
+      {
+        id: "b3",
+        type: "quote",
+        content: "Zitat ".repeat(500),
+      },
+    ]),
+    category: undefined,
+    description: undefined,
+    lastUpdate: undefined,
+    tag: "performance",
+  },
+};
+  
 
 export function getArticles(): Article[] {
   return Object.values(articles);
