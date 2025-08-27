@@ -8,8 +8,18 @@ import { Article, ArticleBlock, getArticleById } from "@/lib/articles";
 import CodeBlock from "@/components/Artikel/Items/CodeBlock";
 import { Virtuoso } from "react-virtuoso";
 import Assistant from "@/components/Artikel2/Assistant"; // korrekt
+import { usePathname } from "next/navigation";
+//Tabs
+import DocumentSection from "@/components/Artikel2/Dokuments/DocumentsSection";
 
+import { generateUUID } from "@/app/utils/uuid";
+import CommentsTab from "@/components/Artikel2/Tabs/CommentsTab";
+import HistoryTab from "@/components/Artikel2/Tabs/HistoryTab";
+import LinksTab from "@/components/Artikel2/Tabs/LinksTab";
+import StatsTab from "@/components/Artikel2/Tabs/StatsTab";
+import TasksTab from "@/components/Artikel2/Tabs/TasksTab";
 
+import { useTabs, CommentItem, TaskItem, LinkItem } from "@/hooks/useTabs";
 
 
 
@@ -178,12 +188,40 @@ export default function ArticlePage() {
   const id = params?.id;
   const router = useRouter();
   const pdfRef = useRef<HTMLDivElement>(null);
-
+  const pathname = usePathname();
+const [activeTab, setActiveTab] = useState<
+    "wiki" | "documents" | "comments" | "history" | "tasks" | "links" | "stats"
+  >("wiki");
   const [article, setArticle] = useState<Article | null>(null);
   const [allBlocks, setAllBlocks] = useState<EditorBlock[]>([]);
   const [visibleBlocks, setVisibleBlocks] = useState<EditorBlock[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPage, setSelectedPage] = useState<WikiPage | null>(null);
+
+  const { comments, setComments, tasks, setTasks, links, setLinks, stats } = useTabs({
+    views: article?.views || 0,
+    edits: 0,
+    comments: 0,
+    attachments: 0
+  });
+
+  // ganz oben in der Komponente
+const [documents, setDocuments] = useState<{ id: string; name: string; url: string }[]>([
+  { id: "1", name: "Projektplan.pdf", url: "/docs/projektplan.pdf" },
+  { id: "2", name: "Notizen.docx", url: "/docs/notizen.docx" },
+]);
+
+function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  if (e.target.files && e.target.files.length > 0) {
+    const file = e.target.files[0];
+    const newDoc = {
+      id: crypto.randomUUID(),
+      name: file.name,
+      url: URL.createObjectURL(file), // ⚠️ Demo: erzeugt nur lokalen Link
+    };
+    setDocuments((prev) => [...prev, newDoc]);
+  }
+}
 
   // --- Laden von Article / WikiPage
   useEffect(() => {
@@ -289,110 +327,191 @@ export default function ArticlePage() {
   };
 
   if (!article && !loading) return <div className="p-6 text-red-500">Article not found</div>;
-
-  return (
-    <div className="flex bg-gray-50 min-h-screen">
-      <aside className="sticky top-0 h-screen flex-shrink-0">
-        <SidebarWiki
-          onSelectPage={(page: Article | WikiPage) => {
-            if ("content" in page) {
-              let blocks: EditorBlock[] = [];
-              if (typeof page.content === "string") {
-                try {
-                  const parsed = JSON.parse(page.content) as Partial<EditorBlock>[];
-                  blocks = parsed.map((b: Partial<EditorBlock>) => ({
-                    id: b.id || crypto.randomUUID(),
-                    type: b.type || "text",
-                    content: b.content || "",
-                    language: b.language || "markdown",
-                  }));
-                } catch { blocks = []; }
-              } else {
-                blocks = page.content.map((b) => ({
-                  id: b.id,
-                  type: b.type,
-                  content: b.content,
+return (
+  <div className="flex bg-gray-50 min-h-screen">
+    <aside className="sticky top-0 h-screen flex-shrink-0">
+      <SidebarWiki
+        onSelectPage={(page: Article | WikiPage) => {
+          if ("content" in page) {
+            let blocks: EditorBlock[] = [];
+            if (typeof page.content === "string") {
+              try {
+                const parsed = JSON.parse(page.content) as Partial<EditorBlock>[];
+                blocks = parsed.map((b: Partial<EditorBlock>) => ({
+                  id: b.id || generateUUID(),
+                  type: b.type || "text",
+                  content: b.content || "",
                   language: b.language || "markdown",
-                  children: b.children,
-                  level: b.level,
                 }));
+              } catch {
+                blocks = [];
               }
-
-              setSelectedPage({
-                id: page.id,
-                name: page.name,
-                content: blocks,
-              });
+            } else {
+              blocks = page.content.map((b) => ({
+                id: b.id,
+                type: b.type,
+                content: b.content,
+                language: b.language || "markdown",
+                children: b.children,
+                level: b.level,
+              }));
             }
-          }}
-        />
-      </aside>
 
-      <main className="flex-1 overflow-auto p-6">
-        <div className="mb-4">
-          {/* Reihe 1: Breadcrumb + Selected Page und Buttons */}
-          <div className="flex justify-between items-start">
-            <div>
-              {/* Breadcrumb */}
-              <div className="text-gray-500 text-sm">{article?.name ? `Article > Wiki > ${article.name}` : "Article > Wiki"}</div>
-              {/* Selected Page */}
-              {selectedPage && (
-                <h1 className="text-2xl font-bold">{selectedPage.name}</h1>
-              )}
-            </div>
+            setSelectedPage({
+              id: page.id,
+              name: page.name,
+              content: blocks,
+            });
+          }
+        }}
+      />
+    </aside>
 
-            {/* Buttons rechts */}
-            <div className="flex gap-2">
-              <button className="px-3 py-1.5 border rounded-lg text-sm shadow hover:bg-gray-100" onClick={() => router.push(`/wiki/${article?.id}/edit`)}>✏️ Edit</button>
-              <button className="px-3 py-1.5 border rounded-lg text-sm shadow hover:bg-gray-100" onClick={() => router.push(`/wiki/${article?.id}/edit2`)}>✏️ Edit 2</button>
-              <button className="px-3 py-1.5 border rounded-lg text-sm shadow hover:bg-gray-100" onClick={downloadMarkdown}>⬇️ Download MD</button>
-              <button className="px-3 py-1.5 border rounded-lg text-sm shadow hover:bg-gray-100" onClick={downloadPDF}>⬇️ Download PDF</button>
+    <main className="flex-1 overflow-auto p-6">
+      <div className="mb-4">
+        {/* Reihe 1: Breadcrumb + Selected Page und Buttons */}
+        <div className="flex justify-between items-start">
+          <div>
+            {/* Breadcrumb */}
+            <div className="text-gray-500 text-sm">
+              {article?.name ? `Article > Wiki > ${article.name}` : "Article > Wiki"}
             </div>
+            {/* Selected Page */}
+            {selectedPage && (
+              <h1 className="text-2xl font-bold">{selectedPage.name}</h1>
+            )}
           </div>
 
-          {/* Reihe 2: Last edited links, Views rechts */}
-          <div className="flex justify-between mt-2 items-center text-xs text-gray-600">
-            <div>
-              Last edited by <span className="font-bold">{article?.creator || ""} a minute ago</span>
-            </div>
-            <div className="text-gray-400">
-              {article?.views || 0} views
-            </div>
+          {/* Buttons rechts */}
+          <div className="flex gap-2">
+            <button
+              className="px-3 py-1.5 border rounded-lg text-sm shadow hover:bg-gray-100"
+              onClick={() => router.push(`/wiki/${article?.id}/edit`)}
+            >
+              ✏️ Edit
+            </button>
+            <button
+              className="px-3 py-1.5 border rounded-lg text-sm shadow hover:bg-gray-100"
+              onClick={() => router.push(`/wiki/${article?.id}/edit2`)}
+            >
+              ✏️ Edit 2
+            </button>
+            <button
+              className="px-3 py-1.5 border rounded-lg text-sm shadow hover:bg-gray-100"
+              onClick={downloadMarkdown}
+            >
+              ⬇️ Download MD
+            </button>
+            <button
+              className="px-3 py-1.5 border rounded-lg text-sm shadow hover:bg-gray-100"
+              onClick={downloadPDF}
+            >
+              ⬇️ Download PDF
+            </button>
           </div>
         </div>
 
-
-        <hr className="mb-4 border-gray-300" />
-
-        {loading ? (
-          <ArticleSkeleton blocksCount={10} />
-        ) : !selectedPage ? (
-          <div className="p-6 mt-30 text-gray-500 text-center">
-            Wähle eine Seite aus der Sidebar aus, um Inhalte anzuzeigen.
+        {/* Reihe 2: Last edited + Views */}
+        <div className="flex justify-between mt-2 items-center text-xs text-gray-600">
+          <div>
+            Last edited by{" "}
+            <span className="font-bold">{article?.creator || ""} a minute ago</span>
           </div>
-        ) : (
-          <div ref={pdfRef}>
-            
-            {selectedPage.content.length > 0 ? (
-              <Virtuoso
-                style={{ height: "80vh", width: "100%" }}
-                data={selectedPage.content}
-                increaseViewportBy={{ top: 600, bottom: 600 }}
-                components={{ Item: ({ children, ...props }) => <div {...props} style={{ padding: "2px 0" }}>{children}</div> }}
-                itemContent={(index, block) => <BlockMemo key={block.id} block={block} />}
-              />
-            ) : (
-              <div>
-                <p className="text-gray-500">Kein Inhalt für diese Seite.<br />Nutze unserern Editor uns lege neues Wissen an oder lösche diese Seite.</p>
-                <button className="px-3 mt-4 py-1.5 border rounded-lg text-sm shadow hover:bg-gray-100" onClick={() => router.push(`/wiki/${article?.id}/edit2`)}>✏️ Loslegen</button>
-              <button className="px-3 mt-4 ml-4 py-1.5 border rounded-lg text-sm shadow hover:bg-gray-100" onClick={() => router.push(`/wiki/${article?.id}/edit2`)}>Seite Löschen</button>
-              </div>
-            )}
-          </div>
-        )}
-      </main>
-      <Assistant wikiPages={selectedPage ? [selectedPage] : []} />
+          <div className="text-gray-400">{article?.views || 0} views</div>
+        </div>
+      </div>
 
-    </div>
-  );
+      {/* Reihe 3: Tabs */}
+      {/* Tabs */}
+        <div className="border-b border-gray-300 mt-4">
+          <nav className="flex space-x-4 flex-wrap">
+            {[
+              { key: "wiki", label: "WikiPage" },
+              { key: "documents", label: "Documents" },
+              { key: "comments", label: "Comments" },
+              { key: "history", label: "History" },
+              { key: "tasks", label: "Tasks" },
+              { key: "links", label: "Links" },
+              { key: "stats", label: "Stats" },
+            ].map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key as any)}
+                className={`pb-2 text-sm font-medium cursor-pointer ${
+                  activeTab === tab.key ? "border-b-2 border-blue-500 text-blue-600" : "text-gray-600 hover:text-gray-800"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </nav>
+        </div>
+
+      <hr className="mb-4 border-gray-300" />
+
+      {/* Tab Content */}
+      {loading ? (
+        <ArticleSkeleton blocksCount={10} />
+      ) : !selectedPage ? (
+        <div className="p-6 mt-30 text-gray-500 text-center">
+          Wähle eine Seite aus der Sidebar aus, um Inhalte anzuzeigen.
+        </div>
+      ) : (
+        <div ref={pdfRef}>
+          {activeTab === "wiki" && selectedPage.content.length > 0 && (
+            <Virtuoso
+              style={{ height: "80vh", width: "100%" }}
+              data={selectedPage.content}
+              increaseViewportBy={{ top: 600, bottom: 600 }}
+              components={{
+                Item: ({ children, ...props }) => (
+                  <div {...props} style={{ padding: "2px 0" }}>
+                    {children}
+                  </div>
+                ),
+              }}
+              itemContent={(index, block) => <BlockMemo key={block.id} block={block} />}
+            />
+          )}
+
+          {activeTab === "wiki" && selectedPage.content.length === 0 && (
+            <div>
+              <p className="text-gray-500">
+                Kein Inhalt für diese Seite.
+                <br />
+                Nutze unseren Editor und lege neues Wissen an oder lösche diese
+                Seite.
+              </p>
+              <button
+                className="px-3 mt-4 py-1.5 border rounded-lg text-sm shadow hover:bg-gray-100"
+                onClick={() => router.push(`/wiki/${article?.id}/edit2`)}
+              >
+                ✏️ Loslegen
+              </button>
+              <button
+                className="px-3 mt-4 ml-4 py-1.5 border rounded-lg text-sm shadow hover:bg-gray-100"
+                onClick={() => router.push(`/wiki/${article?.id}/edit2`)}
+              >
+                Seite Löschen
+              </button>
+            </div>
+          )}
+
+          {activeTab === "documents" && <DocumentSection />}
+          {activeTab === "wiki" && <Virtuoso style={{ height: "80vh", width: "100%" }} data={selectedPage.content} itemContent={(i, block) => <BlockMemo key={block.id} block={block} />} />}
+           
+            {activeTab === "history" && <HistoryTab history={[]} />}
+            {activeTab === "tasks" && <TasksTab tasks={tasks} setTasks={setTasks} />}
+            {activeTab === "links" && <LinksTab links={links} setLinks={setLinks} />}
+            {activeTab === "stats" && <StatsTab stats={stats} />}
+        </div>
+      )}
+    </main>
+
+    <Assistant wikiPages={selectedPage ? [selectedPage] : []} />
+  </div>
+);
+
+
+
 }
