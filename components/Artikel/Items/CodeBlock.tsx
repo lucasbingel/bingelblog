@@ -45,7 +45,7 @@ export default function CodeBlock({
 
         <button
           onClick={handleCopy}
-          className={`flex items-center gap-1 text-xs px-2 py-1 rounded transition-all 
+          className={`flex items-center gap-1 text-xs px-2 py-1 rounded transition-all cursor-pointer
             ${copied ? "bg-green-200 text-black" : "bg-gray-800 text-white opacity-80 hover:opacity-100"}`}
         >
           {copied ? (
