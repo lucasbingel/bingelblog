@@ -2,10 +2,11 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { MessageCircle, X, Plus, Trash2, Send, Download } from "lucide-react";
+import { MessageCircle, X, Plus, Trash2, Send, Download, CircleQuestionMark } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import LumiIcon from "../../public/images/Lumi.png"; // dein PNG
-import ChatOnboarding from "./ChatOnboarding";
+import Explainer, { ExplainerStep } from "./Explainer";
+
 
 
 /**
@@ -33,6 +34,7 @@ export interface EditorBlock {
   content: any;
   language?: string;
   children?: EditorBlock[];
+  level?: number; // neu hinzugefügt für TOC
 }
 export interface WikiPage {
   id: string;
@@ -82,6 +84,13 @@ interface AssistantProps {
   maxChats?: number; // default 3
   basePath?: string; // url-prefix for wiki links
   userRefs?: string[]; // IDs of referate/Abteilungen the current user can access (for permissions)
+}
+
+//#region Workflows
+interface WorkflowStep {
+  id: string;
+  text: string;
+  suggestions?: BotSuggestion[];
 }
 //#endregion
 
@@ -190,7 +199,52 @@ export default function Assistant({
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 const chatWindowRef = useRef<HTMLDivElement | null>(null);
+  //#endregion
 
+  //#region UserRef Role Temporärie
+  // useState oder direkt im Component Scope
+  const userAccessRefs = [
+    { id: "ref1", value: "70" },
+    { id: "ref2", value: "71" },
+    { id: "ref3", value: "72" },
+    { id: "ref4", value: "BDL" },
+    // weitere Referate
+  ];
+
+  //#endregion
+
+  //#region Worlfows
+  const workflows: Record<string, WorkflowStep[]> = {
+  "urlaub beantragen": [
+    { id: "1", text: "Schritt 1: Wähle das passende Formular aus.", suggestions: [{ label: "Urlaubsantrag PDF" }] },
+    { id: "2", text: "Schritt 2: Fülle das Formular aus und lade hoch.", suggestions: [{ label: "Hochladen" }] },
+    { id: "3", text: "Schritt 3: Bestätigung erhalten.", suggestions: [{ label: "Bestätigen" }] },
+  ],
+
+  "dienstreise abrechnen": [
+    { id: "1", text: "Schritt 1: Reisedaten erfassen.", suggestions: [{ label: "Reiseformular öffnen" }] },
+    { id: "2", text: "Schritt 2: Belege hochladen.", suggestions: [{ label: "Belege hochladen" }] },
+    { id: "3", text: "Schritt 3: Abrechnung prüfen und einreichen.", suggestions: [{ label: "Abrechnung einreichen" }] },
+  ],
+
+  "zeiterfassung fehlzeit": [
+    { id: "1", text: "Schritt 1: Fehlzeiten auswählen.", suggestions: [{ label: "Fehlzeitformular öffnen" }] },
+    { id: "2", text: "Schritt 2: Daten eintragen (Datum, Grund).", suggestions: [{ label: "Eintragen" }] },
+    { id: "3", text: "Schritt 3: Eintrag prüfen und speichern.", suggestions: [{ label: "Speichern" }] },
+  ],
+
+  "urlaubsvertretung eintragen": [
+    { id: "1", text: "Schritt 1: Vertretungszeitraum auswählen.", suggestions: [{ label: "Kalender öffnen" }] },
+    { id: "2", text: "Schritt 2: Kollegen als Vertretung eintragen.", suggestions: [{ label: "Kollegen auswählen" }] },
+    { id: "3", text: "Schritt 3: Vertretung bestätigen.", suggestions: [{ label: "Bestätigen" }] },
+  ],
+
+  "supportanfrage erstellen": [
+    { id: "1", text: "Schritt 1: Problem beschreiben.", suggestions: [{ label: "Ticketformular öffnen" }] },
+    { id: "2", text: "Schritt 2: Priorität auswählen.", suggestions: [{ label: "Priorität einstellen" }] },
+    { id: "3", text: "Schritt 3: Ticket absenden.", suggestions: [{ label: "Ticket absenden" }] },
+  ],
+};
 
   //#endregion
 
@@ -205,16 +259,97 @@ const chatWindowRef = useRef<HTMLDivElement | null>(null);
   //#endregion
 
   //#region Onboarding
-  const sendButtonRef = useRef<HTMLInputElement | null>(null);
-  const newChatButtonRef = useRef<HTMLInputElement | null>(null);
-const [showOnboarding, setShowOnboarding] = useState(true); // <-- NEU
-const exportRef = useRef<HTMLButtonElement | null>(null);
-const newChatRef = useRef<HTMLButtonElement | null>(null);
-const clearAllRef = useRef<HTMLButtonElement | null>(null);
-const closeRef = useRef<HTMLButtonElement | null>(null);
+ // Refs zentral sammeln
+  const refs = {
+    input: useRef<HTMLInputElement | null>(null), 
+    referatDiv: useRef<HTMLDivElement | null>(null),
+    startOnboardingButton: useRef<HTMLButtonElement | null>(null),
+    chatbutton: useRef<HTMLDivElement | null>(null),
+    exportButton: useRef<HTMLButtonElement | null>(null),
+    newChatButton: useRef<HTMLButtonElement | null>(null),
+    clearAllButton: useRef<HTMLButtonElement | null>(null),
+    closeButton: useRef<HTMLButtonElement | null>(null),
+    suggetionsDiv: useRef<HTMLDivElement | null>(null),
+  };
+  // Schritte definierst du hier flexibel
+  const steps: ExplainerStep[] = [
+  // Start
+  {
+    targetKey: null, tooltipPosition: undefined, offset: undefined,
+    title: "Willkommen bei Lumi", text: "Hallo, ich bin Lumi. Ich helfe dir, schnell die richtigen Infos im Wiki zu finden. Lass uns starten!"
+  },
+  // Tabs
+  {
+    targetKey: "chatbutton", tooltipPosition: "bottom", offset: 20,
+    title: "Navigation & Tabs", text: "Hier oben kannst du mehrere Chats parallel öffnen. Jeder Tab ist ein eigenes Gespräch mit mir."
+  },
+  // Eingabefeld
+  {
+    targetKey: "input", tooltipPosition: "top", offset: 60,
+    title: "Eingabefeld", text: "Hier gibst du deine Frage ein."
+  },
+  // Referat Div
+  {
+    targetKey: "referatDiv", tooltipPosition: "bottom", offset: 20,
+    title: "Zugriffe", text: "Hier siehst du auf welche Wkieinträge Lumi aus welchen referaten für dich zugreifen kann."
+  },
+  // Start Onboarding Button
+  {
+    targetKey: "startOnboardingButton", tooltipPosition: "left", offset: 20,
+    title: "Onboarding starten", text: "Du kannst das Onboarding jederzeit erneut starten, um die Funktionen zu sehen."
+  },
+  // Export Button
+  {
+    targetKey: "exportButton", tooltipPosition: "left", offset: 20,
+    title: "Chat exportieren", text: "Hier kannst du den aktuellen Chat als Markdown-Datei exportieren."
+  },
+  // Neuer Chat
+  {
+    targetKey: "newChatButton", tooltipPosition: "left", offset: -40,
+    title: "Neuer Chat", text: "Hier startest du einen neuen Chat."
+  },
+  // Clear All Button
+  {
+    targetKey: "clearAllButton", tooltipPosition: "left", offset: 20,
+    title: "Alle Chats löschen", text: "Mit diesem Button kannst du alle geöffneten Chats zurücksetzen."
+  },
+  // Close Button
+  {
+    targetKey: "closeButton", tooltipPosition: "left", offset: 20,
+    title: "Lumi schließen", text: "Hiermit kannst du das Lumi Fenster schließen oder drücke einfach außerhalb vom Lumifenster."
+  },
+  // Suggetions
+  {
+    targetKey: "suggetionsDiv", tooltipPosition: "bottom", offset: undefined,
+    title: "Quick Actions", text: "Ich gebe dir immer eine Schnellauswahl an Aktionen."
+  },
+    // End
+  {
+    targetKey: null, tooltipPosition: undefined, offset: undefined,
+    title: "Fertig", text: "Du bist jetzt startklar 🚀"
+  },
+];
 
 
+
+
+
+  const [showOnboarding, setShowOnboarding] = useState(true); //true= starts every time for Testing
   //#endregion
+
+  // Scrollen verhindern, solange Onboarding läuft
+// Scroll nur blockieren, wenn das Chat-Fenster offen ist
+useEffect(() => {
+  if (open) {
+    document.body.style.overflow = "hidden";
+  } else {
+    document.body.style.overflow = "";
+  }
+  return () => {
+    document.body.style.overflow = "";
+  };
+}, [open]);
+
 
 //#region Close window Outside
 useEffect(() => {
@@ -263,7 +398,8 @@ useEffect(() => {
         { label: "❓ Support kontaktieren", href: undefined },
         { label: "❓ Favoriten anzeigen", href: undefined },
         { label: "❓ Datenschutzrichtlinien", href: undefined },
-        { label: "❓ Hilfe", href: undefined }
+        { label: "❓ Hilfe", href: undefined },
+        { label: "📝 Zusammenfassen starten", href: undefined },
       ],
       createdAt: Date.now() + 1, // damit Reihenfolge korrekt bleibt
     };
@@ -319,7 +455,8 @@ useEffect(() => {
         { label: "❓ Support kontaktieren", href: undefined },
         { label: "❓ Favoriten anzeigen", href: undefined },
         { label: "❓ Datenschutzrichtlinien", href: undefined },
-        { label: "❓ Hilfe", href: undefined }
+        { label: "❓ Hilfe", href: undefined },
+        { label: "📝 Zusammenfassen starten", href: undefined },
       ],
       createdAt: Date.now(),
     };
@@ -347,7 +484,8 @@ useEffect(() => {
         { label: "❓ Support kontaktieren", href: undefined },
         { label: "❓ Favoriten anzeigen", href: undefined },
         { label: "❓ Datenschutzrichtlinien", href: undefined },
-        { label: "❓ Hilfe", href: undefined }
+        { label: "❓ Hilfe", href: undefined },
+        { label: "📝 Zusammenfassen starten", href: undefined },
       ],
           createdAt: Date.now(),
         };
@@ -366,6 +504,16 @@ useEffect(() => {
       text: `${assistantName} wurde zurückgesetzt.`,
       imageSrc: LumiIcon.src, // hier dein Bild
       imagePosition: "left",
+                  suggestionColumns:2,
+      suggestions: [
+        { label: "🔎 Artikel suchen", href: undefined },
+        { label: "📄 Letzte Artikel", href: undefined },
+        { label: "❓ Support kontaktieren", href: undefined },
+        { label: "❓ Favoriten anzeigen", href: undefined },
+        { label: "❓ Datenschutzrichtlinien", href: undefined },
+        { label: "❓ Hilfe", href: undefined },
+        { label: "📝 Zusammenfassen starten", href: undefined },
+      ],
       createdAt: Date.now(),
     };
     const base: ChatTab = { id, title: "Chat 1", messages: [intro], createdAt: id };
@@ -374,6 +522,45 @@ useEffect(() => {
   }
 
   //#endregion
+
+  //#region Article Helpers
+function TableOfContents({ blocks }: { blocks: EditorBlock[] }) {
+  const headings = blocks
+    .filter((b) => b.type.startsWith("heading"))
+    .map((b, i) => ({ id: `heading-${i}`, text: b.content, level: b.level ?? 1 }));
+
+  if (headings.length === 0) return null;
+
+  return (
+    <div className="mb-2 border-l-2 border-slate-300 pl-2">
+      <strong>Inhaltsverzeichnis:</strong>
+      <ul className="text-xs space-y-1">
+        {headings.map((h) => (
+          <li key={h.id} className={`ml-${(h.level - 1) * 2}`}>
+            <a href={`#${h.id}`} className="text-slate-600 hover:underline">{h.text}</a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function ArticleSummary({ blocks }: { blocks: EditorBlock[] }) {
+  return (
+    <div className="mb-2 p-2 border border-slate-200 rounded bg-slate-50 text-sm">
+      <strong>Artikel-Zusammenfassung:</strong>
+      <ul className="mt-1 list-disc list-inside">
+        {blocks.map((b, i) => {
+          if (typeof b.content !== "string") return null;
+          const summary = b.content.split(".")[0]; // erster Satz
+          return <li key={i}>{summary}</li>;
+        })}
+      </ul>
+    </div>
+  );
+}
+//#endregion
+
 
   //#region Messaging helpers
   function pushBotMessage(msg: ChatMessage) {
@@ -387,6 +574,32 @@ useEffect(() => {
     return basePath || "/wiki";
   }
 
+  //
+  function summarizeSelection(page: WikiPage) {
+  if (!page || !page.content) return;
+
+  // Alle Textblöcke zusammenführen
+  const textBlocks = page.content
+    .map((b) => (typeof b.content === "string" ? b.content : JSON.stringify(b.content)))
+    .filter(Boolean);
+
+  // Einfache Zusammenfassung: die ersten Sätze pro Block
+  const summary = textBlocks
+    .map((txt) => txt.split(".")[0]) // erster Satz
+    .join(". ") + ".";
+
+  const summaryMsg: ChatMessage = {
+    role: "bot",
+    text: `Zusammenfassung der Seite "${page.name}":\n\n${summary}`,
+    createdAt: Date.now(),
+  };
+
+  pushBotMessage(summaryMsg);
+}
+
+
+
+
   function handleSuggestionAction(s: BotSuggestion) {
     const label = s.label.toLowerCase();
     if (label.includes("such") || label.includes("🔎") || label.includes("search")) {
@@ -394,6 +607,14 @@ useEffect(() => {
       setTimeout(() => inputRef.current?.focus(), 50);
       return;
     }
+    
+  if (label.includes("zusammenfassen")) {
+    console.log("Zusammenfassung gestartet!");
+    const pageToSummarize = wikiPages?.[0]; // oder besser: die vom Benutzer ausgewählte Seite
+  if (pageToSummarize) summarizeSelection(pageToSummarize);
+    // summarizeSelection(); // unsere zusammenfassen-Funktion starten
+    return;
+  }
     if (label.includes("letzte") || label.includes("recent")) {
       const recent = (wikiPages ?? [])
         .slice(0, 5)
@@ -424,7 +645,12 @@ useEffect(() => {
   function sendInput() {
     const text = input.trim();
     if (!text || !activeTabId) return;
-
+    // Workflow check
+    if (workflows[text.toLowerCase()]) {
+      workflows[text.toLowerCase()].forEach(step => pushBotMessage({ role: "bot", text: step.text, suggestions: step.suggestions, createdAt: Date.now() }));
+      setInput("");
+      return;
+    }
     const userMsg: ChatMessage = { role: "user", text, createdAt: Date.now() };
     setTabs((prev) => prev.map((t) => (t.id === activeTabId ? { ...t, messages: [...t.messages, userMsg] } : t)));
     setInput("");
@@ -494,6 +720,13 @@ useEffect(() => {
   }
   //#endregion
 
+  //#region Start Onboarding
+  function startOnboarding(){
+    clearAllChats();
+    setShowOnboarding(true);
+  }
+  //#endregion
+
   //#region Export chat as markdown
   function exportActiveChatAsMarkdown() {
     if (!activeTab) return;
@@ -552,18 +785,22 @@ return (
 
         {/* Chat Window */}
         <div
-          className="fixed bottom-6 right-6 z-50 w-[520px] h-[640px] bg-white border border-slate-300 shadow-2xl flex flex-col pointer-events-auto cursor-default"
+          className="fixed bottom-6 right-6 z-50 w-[520px] h-[640px] bg-white border border-slate-300 shadow-2xl flex flex-col pointer-events-auto cursor-default z-99"
           onClick={(e) => e.stopPropagation()} // Klick im Fenster blockiert Close
         >
           {/* ChatOnboarding Overlay */}
           {showOnboarding && (
-            <ChatOnboarding
-              inputRef={inputRef}
-              exportButtonRef={exportRef}
-              newChatButtonRef={newChatRef}
-              clearAllButtonRef={clearAllRef}
-              closeButtonRef={closeRef}
+            <Explainer
+              refs={refs}
+              steps={steps}
               onFinish={() => setShowOnboarding(false)}
+              startImage="/images/Lumi.png"
+              endImage="/images/Lumi.png"
+              warningText="Lumi ist kein KI-Modell, sondern ein gesteuerter Assistent."
+              showWarning={true}
+              warningTXTColor="#991B1B"       // rot dunkel
+              warningBGColor="#FEE2E2"        // rot hell
+              warningBorderColor="#B91C1C"    // rote Umrandung
             />
           )}
 
@@ -573,12 +810,34 @@ return (
               <div className="text-sm font-semibold">
                 {assistantName} – Dein Wiki-Guide
               </div>
-              <div className="text-xs text-slate-500">Verwaltung</div>
+              {/* <div className="text-xs text-slate-500">KVRLK</div> */}
+            </div>
+
+            {/* Dynamische Referat-Badges */}
+            <div className="flex gap-2 items-center" ref={refs.referatDiv}>
+              {userAccessRefs.map((ref) => (
+                <div
+                
+                  key={ref.id} 
+                  className="px-2 py-1 bg-slate-200 text-slate-800 text-xs font-medium rounded-md flex items-center gap-1"
+                  title={`Zugriff auf Referat ${ref.value}`}
+                >
+                  <span className="font-bold">{ref.value}</span>
+                </div>
+              ))}
             </div>
 
             <div className="flex items-center gap-2">
               <button
-                ref={exportRef}
+                ref={refs.startOnboardingButton}
+                onClick={startOnboarding}
+                title="Onboarding"
+                className="text-slate-600 hover:text-slate-900 cursor-pointer"
+              >
+                <CircleQuestionMark size={16} />
+              </button>
+              <button
+                ref={refs.exportButton}
                 onClick={exportActiveChatAsMarkdown}
                 title="Exportieren"
                 className="text-slate-600 hover:text-slate-900 cursor-pointer"
@@ -586,7 +845,7 @@ return (
                 <Download size={16} />
               </button>
               <button
-                ref={newChatRef}
+                ref={refs.newChatButton}
                 onClick={() => createNewChat()}
                 title="Neuer Chat"
                 className="text-slate-600 hover:text-slate-900 cursor-pointer"
@@ -594,7 +853,7 @@ return (
                 <Plus size={16} />
               </button>
               <button
-                ref={clearAllRef}
+                ref={refs.clearAllButton}
                 onClick={() => clearAllChats()}
                 title="Alle Chats löschen"
                 className="text-red-600 hover:text-red-800 cursor-pointer"
@@ -602,7 +861,7 @@ return (
                 <Trash2 size={16} />
               </button>
               <button
-                ref={closeRef}
+                ref={refs.closeButton}
                 onClick={() => setOpen(false)}
                 title="Schließen"
                 className="text-slate-600 hover:text-slate-900 cursor-pointer"
@@ -617,6 +876,7 @@ return (
             {tabs.map((t) => (
               <div
                 key={t.id}
+                ref={refs.chatbutton}
                 onClick={() => setActiveTabId(t.id)}
                 className={`px-3 py-1 text-sm cursor-pointer select-none ${
                   activeTabId === t.id
@@ -624,6 +884,7 @@ return (
                     : "text-slate-600 hover:bg-slate-50"
                 }`}
                 title={t.title}
+                
               >
                 <div className="flex items-center gap-2">
                   <span>{t.title}</span>
@@ -702,12 +963,23 @@ return (
                       {/* Text */}
                       <div className="whitespace-pre-wrap text-sm">
                         {m.text}
+                        {m.suggestions && m.suggestions.length > 0 && m.suggestions[0].href?.includes("/wiki") && (() => {
+                          const page = wikiPages.find(p => p.id === m.suggestions![0].id);
+                          if (!page) return null;
+                          return (
+                            <div className="mt-2">
+                              <TableOfContents blocks={page.content} />
+                              <ArticleSummary blocks={page.content} />
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
 
                     {/* Suggestions */}
                     {m.suggestions && m.suggestions.length > 0 && (
                       <div
+                        ref={refs.suggetionsDiv}
                         className="mt-2 grid gap-2"
                         style={{
                           gridTemplateColumns: `repeat(${
@@ -824,7 +1096,7 @@ return (
           {/* Input row */}
           <div className="px-3 py-2 border-t border-slate-200 bg-white flex gap-2 items-center">
             <input
-              ref={inputRef}
+              ref={refs.input}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {

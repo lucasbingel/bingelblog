@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState, memo, useMemo, useRef } from "react";
+import { useEffect, useState, memo, useMemo, useRef, JSX } from "react";
 import SidebarWiki from "@/components/Artikel2/SidebarWiki";
 import ArticleSkeleton from "@/components/Artikel2/ArtikelSkeleton";
 import { Article, ArticleBlock, getArticleById } from "@/lib/articles";
@@ -20,7 +20,17 @@ import StatsTab from "@/components/Artikel2/Tabs/StatsTab";
 import TasksTab from "@/components/Artikel2/Tabs/TasksTab";
 
 import { useTabs, CommentItem, TaskItem, LinkItem } from "@/hooks/useTabs";
+import TocSidebar from "./TocSidebar";
+import Explainer, { ExplainerStep } from "@/components/Artikel2/Explainer";
+import { FileText, Download, ChevronDown } from "lucide-react";
 
+
+
+interface DropdownItem {
+  label: string;
+  option?: string;
+  icon?: JSX.Element;
+}
 
 
 // html2pdf nur client-side importieren
@@ -44,6 +54,8 @@ export interface WikiPage {
   parentId?: string;
   children?: WikiPage[];
 }
+
+
 
 // --- CodeBlock Memo
 const CodeBlockMemo = memo(CodeBlock);
@@ -93,7 +105,13 @@ const BlockMemo = memo(({ block }: { block: EditorBlock }) => {
   // --- Render Block nach type
   switch (block.type) {
     case "heading":
-      return <h2 className="text-2xl font-bold my-2">{block.content}</h2>;
+  const headingId = block.id || generateUUID();
+  return (
+    <h2 id={headingId} className="text-2xl font-bold my-2">
+      {block.content}
+    </h2>
+  );
+
 
     case "text":
       return <p className="my-2 leading-relaxed">{block.content}</p>;
@@ -171,8 +189,99 @@ const BlockMemo = memo(({ block }: { block: EditorBlock }) => {
 });
 
 
+
 const CHUNK_SIZE = 20;
 const CHUNK_THRESHOLD = 1000;
+
+// -----------------------------
+// DownloadDropdown (einfügen)
+// -----------------------------
+function DownloadDropdown({
+  onDownloadMarkdown,
+  onDownloadPDF,
+}: {
+  onDownloadMarkdown: () => void;
+  onDownloadPDF: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Schließen per ESC
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setOpen(false);
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
+  const handleMouseEnter = () => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    setOpen(true);
+  };
+
+  const handleMouseLeave = () => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    // kleine Verzögerung (z. B. 250ms)
+    timeoutRef.current = setTimeout(() => {
+      setOpen(false);
+    }, 250);
+  };
+
+  return (
+    <div
+      className="relative"
+      ref={containerRef}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
+      {/* Hauptbutton */}
+      <button
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className="cursor-pointer flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm shadow hover:bg-gray-100 transition"
+      >
+        <Download className="w-4 h-4" />
+        Download
+        <ChevronDown className="w-4 h-4 ml-1" />
+      </button>
+
+      {/* Dropdown */}
+      {open && (
+        <div className="absolute right-0 mt-2 w-44 bg-white border border-gray-200 rounded shadow-lg z-50 overflow-hidden">
+          <button
+            onClick={() => {
+              onDownloadMarkdown();
+              setOpen(false);
+            }}
+            className="cursor-pointer flex items-center gap-2 w-full px-3 py-2 text-left hover:bg-gray-50 transition"
+          >
+            <FileText className="w-4 h-4" />
+            Markdown (.md)
+          </button>
+
+          <button
+            onClick={() => {
+              onDownloadPDF();
+              setOpen(false);
+            }}
+            className="cursor-pointer flex items-center gap-2 w-full px-3 py-2 text-left hover:bg-gray-50 transition"
+          >
+            <Download className="w-4 h-4" />
+            PDF (.pdf)
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 
 function sanitizeStyles(element: HTMLElement) {
   const allElements = element.querySelectorAll("*");
@@ -184,6 +293,9 @@ function sanitizeStyles(element: HTMLElement) {
 }
 
 export default function ArticlePage() {
+  const virtuosoRef = useRef<any>(null);
+ const [showOnboarding, setShowOnboarding] = useState(true); 
+  const mainRef = useRef<HTMLElement>(null);
   const params = useParams();
   const id = params?.id;
   const router = useRouter();
@@ -211,6 +323,31 @@ const [documents, setDocuments] = useState<{ id: string; name: string; url: stri
   { id: "2", name: "Notizen.docx", url: "/docs/notizen.docx" },
 ]);
 
+//#region Onboarding
+ // Refs zentral sammeln
+  const refs = {
+    BreadcrumbDiv: useRef<HTMLDivElement | null>(null)
+  };
+  // Schritte definierst du hier flexibel
+  const steps: ExplainerStep[] = [
+  // Start
+  {
+    targetKey: null, tooltipPosition: undefined, offset: undefined,
+    title: "Willkommen auf der Artikel Detail Seite", text: "Ich erkläre dir alle Funktionen der Seite. Lass uns starten!"
+  },
+  // Tabs
+  {
+    targetKey: "BreadcrumbDiv", tooltipPosition: "bottom", offset: 20,
+    title: "Navigation & Tabs", text: "Hier oben kannst du mehrere Chats parallel öffnen. Jeder Tab ist ein eigenes Gespräch mit mir."
+  },
+    // End
+  {
+    targetKey: null, tooltipPosition: undefined, offset: undefined,
+    title: "Fertig", text: "Du bist jetzt startklar 🚀"
+  },
+];
+
+
 function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
   if (e.target.files && e.target.files.length > 0) {
     const file = e.target.files[0];
@@ -222,6 +359,8 @@ function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     setDocuments((prev) => [...prev, newDoc]);
   }
 }
+
+
 
   // --- Laden von Article / WikiPage
   useEffect(() => {
@@ -280,6 +419,19 @@ function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
   }, [allBlocks]);
 
   const renderedBlocks = useMemo(() => visibleBlocks, [visibleBlocks]);
+
+const headings = useMemo(() => {
+  return selectedPage?.content
+    .map((b, i) => ({ ...b, index: i })) // Index hinzufügen
+    .filter((b) => b.type === "heading")
+    .map((b) => ({
+      id: b.id,
+      text: typeof b.content === "string" ? b.content : String(b.content),
+      index: b.index, // index ist jetzt Pflicht
+    })) || [];
+}, [selectedPage]);
+
+
 
   const downloadMarkdown = () => {
     if (!renderedBlocks.length) return;
@@ -367,13 +519,30 @@ return (
       />
     </aside>
 
-    <main className="flex-1 overflow-auto p-6">
-      <div className="mb-4">
+        {/* ChatOnboarding Overlay */}
+          {showOnboarding && (
+            <Explainer
+              refs={refs}
+              steps={steps}
+              onFinish={() => setShowOnboarding(false)}
+              startImage="/images/Lucas.jpg"
+              endImage="/images/Lumi.png"
+              warningText="Lumi ist kein KI-Modell, sondern ein gesteuerter Assistent."
+              showWarning={false}
+              warningTXTColor="#991B1B"       // rot dunkel
+            warningBGColor="#FEE2E2"        // rot hell
+            warningBorderColor="#B91C1C"    // rote Umrandung
+            />
+          )}
+
+<main ref={mainRef}  className="flex-1 flex flex-col overflow-auto pt-2 pl-6 pr-6 pb-4 min-h-0">
+
+      <div className="mb-0">
         {/* Reihe 1: Breadcrumb + Selected Page und Buttons */}
         <div className="flex justify-between items-start">
           <div>
             {/* Breadcrumb */}
-            <div className="text-gray-500 text-sm">
+            <div className="text-gray-500 text-sm" ref={refs.BreadcrumbDiv} >
               {article?.name ? `Article > Wiki > ${article.name}` : "Article > Wiki"}
             </div>
             {/* Selected Page */}
@@ -391,23 +560,16 @@ return (
               ✏️ Edit
             </button>
             <button
-              className="px-3 py-1.5 border rounded-lg text-sm shadow hover:bg-gray-100"
+              className="cursor-pointer px-3 py-1.5 border rounded-lg text-sm shadow hover:bg-gray-100"
               onClick={() => router.push(`/wiki/${article?.id}/edit2`)}
             >
               ✏️ Edit 2
             </button>
-            <button
-              className="px-3 py-1.5 border rounded-lg text-sm shadow hover:bg-gray-100"
-              onClick={downloadMarkdown}
-            >
-              ⬇️ Download MD
-            </button>
-            <button
-              className="px-3 py-1.5 border rounded-lg text-sm shadow hover:bg-gray-100"
-              onClick={downloadPDF}
-            >
-              ⬇️ Download PDF
-            </button>
+            <DownloadDropdown
+              onDownloadMarkdown={downloadMarkdown}
+              onDownloadPDF={downloadPDF}
+            />
+
           </div>
         </div>
 
@@ -423,7 +585,7 @@ return (
 
       {/* Reihe 3: Tabs */}
       {/* Tabs */}
-        <div className="border-b border-gray-300 mt-4">
+        <div className="border-b border-gray-300 mt-2">
           <nav className="flex space-x-4 flex-wrap">
             {[
               { key: "wiki", label: "WikiPage" },
@@ -447,7 +609,7 @@ return (
           </nav>
         </div>
 
-      <hr className="mb-4 border-gray-300" />
+      <hr className="mb-0 border-gray-300" />
 
       {/* Tab Content */}
       {loading ? (
@@ -457,22 +619,26 @@ return (
           Wähle eine Seite aus der Sidebar aus, um Inhalte anzuzeigen.
         </div>
       ) : (
-        <div ref={pdfRef}>
-          {activeTab === "wiki" && selectedPage.content.length > 0 && (
-            <Virtuoso
-              style={{ height: "80vh", width: "100%" }}
-              data={selectedPage.content}
-              increaseViewportBy={{ top: 600, bottom: 600 }}
-              components={{
-                Item: ({ children, ...props }) => (
-                  <div {...props} style={{ padding: "2px 0" }}>
-                    {children}
-                  </div>
-                ),
-              }}
-              itemContent={(index, block) => <BlockMemo key={block.id} block={block} />}
-            />
-          )}
+        <div ref={pdfRef} className="flex-1 min-h-0 h-full">
+  {activeTab === "wiki" && selectedPage.content.length > 0 && (
+    
+    <Virtuoso
+    ref={virtuosoRef}   // <- hier hinzufügen
+      style={{ height: '100%', width: '100%' }}
+      data={selectedPage.content}
+      increaseViewportBy={{ top: 600, bottom: 600 }}
+      components={{
+        Item: ({ children, ...props }) => (
+          <div {...props} style={{ padding: "2px 0" }}>
+            {children}
+          </div>
+        ),
+      }}
+      itemContent={(index, block) => <BlockMemo key={block.id} block={block} />}
+    />
+  )}
+
+
 
           {activeTab === "wiki" && selectedPage.content.length === 0 && (
             <div>
@@ -498,8 +664,8 @@ return (
           )}
 
           {activeTab === "documents" && <DocumentSection />}
-          {activeTab === "wiki" && <Virtuoso style={{ height: "80vh", width: "100%" }} data={selectedPage.content} itemContent={(i, block) => <BlockMemo key={block.id} block={block} />} />}
-           
+          {/* {activeTab === "wiki" && <Virtuoso style={{ height: "100%", width: "100%" }} data={selectedPage.content} itemContent={(i, block) => <BlockMemo key={block.id} block={block} />} />}
+            */}
             {activeTab === "history" && <HistoryTab history={[]} />}
             {activeTab === "tasks" && <TasksTab tasks={tasks} setTasks={setTasks} />}
             {activeTab === "links" && <LinksTab links={links} setLinks={setLinks} />}
@@ -507,6 +673,10 @@ return (
         </div>
       )}
     </main>
+
+     {/* Rechts: TOC Sidebar */}
+    <TocSidebar headings={headings} virtuosoRef={virtuosoRef} />
+
 
     <Assistant wikiPages={selectedPage ? [selectedPage] : []} />
   </div>

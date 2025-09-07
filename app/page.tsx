@@ -1,13 +1,11 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import useSWR from "swr";
 import { usePortfolio } from "../context/PortfolioContext";
 import { useRouter } from "next/navigation";
 import ArticleTable from "@/components/Artikel/ArtikelTable";
 import { getArticles } from "@/lib/articles";
-
-
 
 interface Stock {
   symbol: string;
@@ -48,7 +46,7 @@ export default function StockTable() {
   const [filterSector, setFilterSector] = useState("");
 
   const symbols = portfolio.map((p) => p.symbol).join(",");
-  const { data: stocksData, error } = useSWR<Stock[]>(
+  const { data: stocksData } = useSWR<Stock[]>(
     symbols ? `/api/stocks?symbols=${symbols}` : null,
     fetcher,
     { revalidateOnFocus: false }
@@ -114,6 +112,263 @@ export default function StockTable() {
     if (change < -2) return "bg-red-50 text-red-700";
     return "";
   };
+
+  // Fade-In/Fade-Out Refs
+  const fadeRef = useRef<HTMLDivElement>(null);
+  const [fadeVisible, setFadeVisible] = useState(false);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => setFadeVisible(entry.isIntersecting),
+      { threshold: 0.1 }
+    );
+    if (fadeRef.current) observer.observe(fadeRef.current);
+    return () => {
+      if (fadeRef.current) observer.unobserve(fadeRef.current);
+    };
+  }, []);
+
+  // Scroll Offset für Parallax
+  const [offset, setOffset] = useState(0);
+  useEffect(() => {
+    const handleScroll = () => setOffset(window.pageYOffset);
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  const ParallaxCircle = ({
+    size,
+    color,
+    top,
+    left,
+    speed,
+  }: {
+    size: number;
+    color: string;
+    top: number;
+    left: number;
+    speed: number;
+  }) => (
+    <div
+      className="absolute rounded-full opacity-100 z-1"
+      style={{
+        width: size,
+        height: size,
+        backgroundColor: color,
+        top,
+        left,
+        transform: `translateY(${offset * speed}px)`,
+      }}
+    />
+  );
+
+
+//   //
+//   const ParallaxCircle2 = ({
+//   size,
+//   color,
+//   startX,
+//   startY,
+//   endX,
+//   endY,
+//   scrollRange,
+// }: {
+//   size: number;
+//   color: string;
+//   startX: number;
+//   startY: number;
+//   endX: number;
+//   endY: number;
+//   scrollRange: number;
+// }) => {
+//   const ref = useRef<HTMLDivElement>(null);
+
+//   useEffect(() => {
+//     const handleScroll = () => {
+//       if (!ref.current) return;
+
+//       const rect = ref.current.parentElement?.getBoundingClientRect();
+//       if (!rect) return;
+
+//       // Berechne progress relativ zum Div
+//       const progress = Math.min(Math.max((window.innerHeight - rect.top) / scrollRange, 0), 1);
+
+//       const x = startX + (endX - startX) * progress;
+//       const y = startY + (endY - startY) * progress;
+
+//       ref.current.style.transform = `translate(${x}px, ${y}px)`;
+//     };
+
+//     window.addEventListener("scroll", handleScroll, { passive: true });
+//     handleScroll(); // initial setzen
+//     return () => window.removeEventListener("scroll", handleScroll);
+//   }, [startX, startY, endX, endY, scrollRange]);
+
+//   return (
+//     <div
+//       ref={ref}
+//       className="absolute rounded-full"
+//       style={{
+//         width: size,
+//         height: size,
+//         backgroundColor: color,
+//       }}
+//     />
+//   );
+// };
+
+const ParallaxCircle2 = ({
+  size,
+  color,
+  startX,
+  startY,
+  endX,
+  endY,
+  scrollRange,
+}: {
+  size: number;
+  color: string;
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
+  scrollRange: number;
+}) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const ticking = useRef(false);
+
+  useEffect(() => {
+    // initial setzen
+    if (ref.current) {
+      ref.current.style.transform = `translate(${startX}px, ${startY}px)`;
+    }
+
+    const updatePosition = () => {
+      if (!ref.current) return;
+
+      const rect = ref.current.parentElement?.getBoundingClientRect();
+      if (!rect) return;
+
+      const progress = Math.min(
+        Math.max((window.innerHeight - rect.top) / scrollRange, 0),
+        1
+      );
+
+      const x = startX + (endX - startX) * progress;
+      const y = startY + (endY - startY) * progress;
+
+      ref.current.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+      ticking.current = false;
+    };
+
+    const handleScroll = () => {
+      if (!ticking.current) {
+        requestAnimationFrame(updatePosition);
+        ticking.current = true;
+      }
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    updatePosition(); // initial setzen
+
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [startX, startY, endX, endY, scrollRange]);
+
+  return (
+    <div
+      ref={ref}
+      className="absolute rounded-full"
+      style={{
+        width: size,
+        height: size,
+        backgroundColor: color,
+        willChange: "transform",
+      }}
+    />
+  );
+};
+
+
+const ParallaxText = ({
+  heading,
+  text,
+  startX,
+  startY,
+  endX,
+  endY,
+  scrollRange,
+}: {
+  heading: string;
+  text: string;
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
+  scrollRange: number;
+}) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const ticking = useRef(false);
+
+  useEffect(() => {
+    if (ref.current) {
+      ref.current.style.transform = `translate3d(${startX}px, ${startY}px, 0)`;
+    }
+
+    const updatePosition = () => {
+      if (!ref.current) return;
+
+      const rect = ref.current.parentElement?.getBoundingClientRect();
+      if (!rect) return;
+
+      const progress = Math.min(
+        Math.max((window.innerHeight - rect.top) / scrollRange, 0),
+        1
+      );
+
+      const x = startX + (endX - startX) * progress;
+      const y = startY + (endY - startY) * progress;
+
+      ref.current.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+      ticking.current = false;
+    };
+
+    const handleScroll = () => {
+      if (!ticking.current) {
+        requestAnimationFrame(updatePosition);
+        ticking.current = true;
+      }
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    updatePosition();
+
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [startX, startY, endX, endY, scrollRange]);
+
+  return (
+    <div
+      ref={ref}
+      className="absolute flex flex-col items-center text-center will-change-transform"
+    >
+      <h1 className="text-2xl md:text-3xl font-bold mb-2 text-black">
+        {heading}
+      </h1>
+      <p className="text-base md:text-lg text-black-200 ">
+        {text}
+      </p>
+    </div>
+  );
+};
+
+
+
+
+
+
+
+// Container-Ref erstellen
+const containerRef = useRef<HTMLDivElement>(null);
+  
 
   return (
     <div className="space-y-8 mx-12 p-4">
@@ -265,8 +520,141 @@ export default function StockTable() {
         </table>
       </div>
 
-{/* Artikeltabelle */}
-<ArticleTable data={getArticles()} />
+      {/* Artikeltabelle */}
+      <ArticleTable data={getArticles()} />
+
+      {/* Fade-In von unten */}
+      <div
+        ref={fadeRef}
+        className={`transition-all duration-700 transform ${
+          fadeVisible
+            ? "opacity-100 translate-x-0"
+            : "-translate-x-96 opacity-0"
+        } bg-blue-200 p-8 mt-10 rounded-lg text-center`}
+      >
+        Ich fade von der Seite beim Scrollen rein!
+      </div>
+
+      {/* Multi-Layer Parallax */}
+      <div className="relative h-150 overflow-hidden bg-gray-800">
+        <div
+          className="absolute inset-0 bg-fixed bg-center bg-cover"
+          style={{ backgroundImage: "url('/images/Lucas.jpg')" }}
+        />
+        <h2 className="relative text-white text-4xl text-center pt-96 font-bold">
+          Parallax Multi-Layer
+        </h2>
+      </div>
+
+
+      <div className="h-30"/>
+      
+      {/* Multi-Layer Parallax mit 3 Punkten und Bild in der Mitte */}
+      {/* Multi-Layer Parallax mit festen Bild in der Mitte */}
+      {/* Parallax-Punkte um ein normales Bild */}
+      <div className="relative h-[120vh] flex items-center justify-center">
+        {/* Wrapper für Bild + Kreise */}
+        <div className="relative flex items-center justify-center">
+
+              {/* Parallax-Kreise */}
+          <ParallaxCircle size={60} color="lightblue" top={-40} left={-80} speed={0.008} />
+          <ParallaxCircle size={90} color="steelblue" top={-30} left={550} speed={0.08} />
+          <ParallaxCircle size={120} color="skyblue" top={20} left={-30} speed={0.1} />
+
+          {/* Zentrales Bild */}
+          <img
+            src="/images/Muslim.png"
+            alt="Zentrales Bild"
+            className="w-100 h-100"
+          />
+
+
+        </div>
+      </div>
+
+      <div className="h-50"/>
+
+
+      <div className="relative h-[150vh] flex items-center justify-center overflow-hidden will-change-transform">
+
+  {/* Wrapper für Bild + Kreise */}
+<div
+  ref={containerRef}
+  className="relative h-[120vh] flex items-center justify-center "
+>
+{/* Linke Texte */}
+<ParallaxText
+  heading="Value Investing"
+  text="Langfristig investieren mit stabilen Dividenden"
+  startX={-1600}
+  startY={-80}
+  endX={-250}
+  endY={0}
+  scrollRange={800}
+/>
+<ParallaxText
+  heading="ETF-Strategie"
+  text="Breit gestreut und sicher anlegen"
+  startX={-1600}
+  startY={0}
+  endX={-250}
+  endY={100}
+  scrollRange={900}
+/>
+<ParallaxText
+  heading="Stock Picking"
+  text="Chancen in Einzelwerten entdecken"
+  startX={-1600}
+  startY={60}
+  endX={-250}
+  endY={200}
+  scrollRange={1000}
+/>
+
+{/* Rechte Texte */}
+<ParallaxText
+  heading="Technologie"
+  text="Innovationen mit Zukunftspotenzial"
+  startX={1600}
+  startY={-80}
+  endX={300}
+  endY={0}
+  scrollRange={800}
+/>
+<ParallaxText
+  heading="Nachhaltigkeit"
+  text="Grün investieren für die nächste Generation"
+  startX={1600}
+  startY={0}
+  endX={300}
+  endY={100}
+  scrollRange={900}
+/>
+<ParallaxText
+  heading="Wachstum"
+  text="Setze auf dynamische Märkte"
+  startX={1600}
+  startY={60}
+  endX={300}
+  endY={200}
+  scrollRange={1000}
+/>
+
+  {/* Zentrales Bild */}
+  <img
+    src="/images/Muslim.png"
+    alt="Zentrales Bild"
+    className="w-100 h-100 rounded-full z-10"
+  />
+</div>
+
+</div>
+
+
+
+      <div className="h-50"/>
+      <div className="h-50"/>
+
     </div>
   );
 }
